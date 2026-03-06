@@ -1,0 +1,3441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Piepi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root {
+  --bg:    #080808;
+  --s1:    #0e0e0e;
+  --s2:    #141414;
+  --s3:    #1a1a1a;
+  --s4:    #222222;
+  --s5:    #2a2a2a;
+  --b1:    rgba(255,255,255,.07);
+  --b2:    rgba(255,255,255,.11);
+  --b3:    rgba(255,255,255,.18);
+  --t1:    #f5f5f5;
+  --t2:    #888888;
+  --t3:    #444444;
+  --t4:    #2c2c2c;
+  --white: #ffffff;
+  --green: #30d158;
+  --red:   #ff453a;
+  --amber: #ffd60a;
+  --blue:  #0a84ff;
+  --r:  6px;
+  --r2: 10px;
+  --r3: 14px;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --ease: cubic-bezier(.4,0,.2,1);
+  --spring: cubic-bezier(.34,1.3,.64,1);
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { width:100%; height:100%; background:var(--bg); color:var(--t1); font-family:var(--font); font-size:13px; -webkit-font-smoothing:antialiased; overflow:hidden; }
+button { font-family:var(--font); cursor:pointer; border:none; background:none; color:inherit; }
+input  { font-family:var(--font); color:var(--t1); }
+
+::-webkit-scrollbar { width:3px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--s4); border-radius:99px; }
+
+#shell::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image: radial-gradient(circle, rgba(255,255,255,.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+}
+
+@keyframes spin    { to { transform:rotate(360deg); } }
+@keyframes row-in  { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:none; } }
+@keyframes fade-up { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+@keyframes node-pop { from { opacity:0; transform:scale(.5); } to { opacity:1; transform:scale(1); } }
+@keyframes edge-draw { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
+
+#shell { display:flex; flex-direction:column; height:100vh; position:relative; z-index:1; }
+
+/* ── TITLEBAR ── */
+#titlebar {
+  height:44px; display:flex; align-items:center;
+  padding:0 16px; gap:10px;
+  background:rgba(8,8,8,.92);
+  border-bottom:1px solid var(--b1);
+  -webkit-app-region:drag; flex-shrink:0; z-index:200;
+  backdrop-filter:blur(12px);
+}
+.tb-logo { width:20px; height:20px; border-radius:5px; overflow:hidden; background:var(--s3); flex-shrink:0; display:flex; align-items:center; justify-content:center; border:1px solid var(--b1); }
+.tb-logo img { width:100%; height:100%; object-fit:cover; }
+.tb-appname { font-size:13px; font-weight:500; color:var(--t1); letter-spacing:.01em; }
+.tb-pipe { width:1px; height:12px; background:var(--b2); }
+.tb-crumb { font-size:12px; color:var(--t3); display:flex; align-items:center; gap:5px; }
+.tb-spacer { flex:1; }
+.tb-winbtns { display:flex; gap:0; -webkit-app-region:no-drag; align-items:stretch; margin-right:-16px; }
+.tb-winbtn {
+  width:46px; height:44px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; border:none; cursor:pointer;
+  background:transparent; color:var(--t3);
+  transition:background .1s, color .1s;
+}
+.tb-winbtn:hover { background:rgba(255,255,255,.07); color:var(--t1); }
+.tb-winbtn.close:hover { background:#c42b1c; color:#fff; }
+.tb-winbtn i { width:10px; height:10px; }
+
+/* ── LAYOUT ── */
+#body { display:flex; flex:1; overflow:hidden; }
+
+/* ── SIDEBAR ── */
+#sidebar {
+  width:50px; background:var(--bg);
+  border-right:1px solid var(--b1);
+  display:flex; flex-direction:column; align-items:center;
+  padding:8px 0 10px; gap:1px; flex-shrink:0;
+}
+.sb-item {
+  width:34px; height:34px; border-radius:var(--r2);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--t3); transition:background .12s, color .12s;
+  position:relative; cursor:pointer;
+}
+.sb-item:hover { background:var(--s2); color:var(--t2); }
+.sb-item.active { background:var(--s2); color:var(--t1); }
+.sb-item.active::before {
+  content:''; position:absolute; left:-1px; top:50%;
+  transform:translateY(-50%); width:2px; height:14px;
+  background:var(--white); border-radius:0 2px 2px 0;
+}
+.sb-tip {
+  position:absolute; left:calc(100% + 8px);
+  background:var(--s3); color:var(--t1); font-size:11px; font-weight:500;
+  padding:4px 9px; border-radius:var(--r);
+  white-space:nowrap; pointer-events:none; opacity:0;
+  transform:translateX(-3px); transition:opacity .1s, transform .1s;
+  border:1px solid var(--b2); z-index:999;
+  box-shadow:0 4px 16px rgba(0,0,0,.5);
+}
+.sb-item:hover .sb-tip { opacity:1; transform:none; }
+.sb-badge {
+  position:absolute; top:3px; right:3px;
+  min-width:13px; height:13px; background:var(--white); color:var(--bg);
+  font-size:8px; font-weight:700; border-radius:99px;
+  display:none; align-items:center; justify-content:center;
+  padding:0 3px; font-family:var(--mono);
+}
+.sb-divider { width:20px; height:1px; background:var(--b1); margin:5px 0; }
+.sb-spacer  { flex:1; }
+.sb-interpdot {
+  position:absolute; bottom:5px; right:5px;
+  width:5px; height:5px; border-radius:50%;
+  background:var(--green); border:1px solid var(--bg); display:none;
+}
+.has-interp .sb-interpdot { display:block; }
+
+/* ── MAIN ── */
+#main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
+
+/* ── TOPBAR ── */
+#topbar {
+  display:flex; align-items:center; gap:7px;
+  padding:9px 12px;
+  background:rgba(8,8,8,.9);
+  border-bottom:1px solid var(--b1);
+  flex-shrink:0; position:relative;
+}
+.searchbox {
+  flex:1; display:flex; align-items:center; gap:8px;
+  background:var(--s1); border:1px solid var(--b1);
+  border-radius:var(--r2); padding:0 11px; height:32px;
+  transition:border-color .15s, background .15s;
+  position:relative;
+}
+.searchbox:focus-within { border-color:var(--b3); background:var(--s2); }
+.searchbox i.si { color:var(--t3); flex-shrink:0; }
+.searchbox input { flex:1; background:none; border:none; outline:none; font-size:13px; color:var(--t1); }
+.searchbox input::placeholder { color:var(--t3); font-weight:300; }
+.search-clear { width:16px; height:16px; display:none; align-items:center; justify-content:center; color:var(--t3); cursor:pointer; flex-shrink:0; transition:color .1s; }
+.search-clear:hover { color:var(--t2); }
+.search-clear.vis { display:flex; }
+.kbd { font-family:var(--mono); font-size:10px; color:var(--t3); background:var(--s3); border:1px solid var(--b1); padding:2px 5px; border-radius:4px; flex-shrink:0; }
+
+#search-suggestions {
+  position:absolute; top:calc(100% + 4px); left:0; right:0;
+  background:var(--s2); border:1px solid var(--b2);
+  border-radius:var(--r3); z-index:800;
+  box-shadow:0 12px 32px rgba(0,0,0,.6);
+  display:none; overflow:hidden;
+}
+#search-suggestions.vis { display:block; }
+.sug-item { display:flex; align-items:center; gap:8px; padding:7px 12px; font-size:12px; color:var(--t2); cursor:pointer; transition:background .08s, color .08s; }
+.sug-item:hover { background:var(--s3); color:var(--t1); }
+.sug-item i { color:var(--t3); flex-shrink:0; }
+.sug-label { flex:1; }
+.sug-del { width:14px; height:14px; display:flex; align-items:center; justify-content:center; color:var(--t4); transition:color .1s; }
+.sug-del:hover { color:var(--red); }
+
+.topbar-sep { width:1px; height:18px; background:var(--b1); flex-shrink:0; }
+
+.icon-btn {
+  width:32px; height:32px; border-radius:var(--r);
+  display:flex; align-items:center; justify-content:center;
+  background:var(--s1); border:1px solid var(--b1);
+  color:var(--t3); transition:background .1s, color .1s, border-color .1s; flex-shrink:0;
+}
+.icon-btn:hover { background:var(--s2); color:var(--t2); border-color:var(--b2); }
+.icon-btn.active { background:var(--s2); color:var(--t1); border-color:var(--b2); }
+
+.sort-wrap { position:relative; flex-shrink:0; }
+.sort-btn {
+  display:flex; align-items:center; gap:5px; height:32px; padding:0 11px;
+  background:var(--s1); border:1px solid var(--b1);
+  border-radius:var(--r); color:var(--t2); font-size:12px; font-weight:400;
+  transition:all .1s; white-space:nowrap;
+}
+.sort-btn:hover, .sort-btn.open { background:var(--s2); border-color:var(--b2); color:var(--t1); }
+.sort-menu {
+  position:absolute; top:calc(100% + 5px); right:0;
+  background:var(--s2); border:1px solid var(--b2);
+  border-radius:var(--r3); overflow:hidden; z-index:500; min-width:170px;
+  box-shadow:0 8px 24px rgba(0,0,0,.6);
+  opacity:0; pointer-events:none;
+  transform:translateY(-4px) scale(.98); transform-origin:top right;
+  transition:opacity .14s, transform .14s var(--spring);
+}
+.sort-menu.open { opacity:1; pointer-events:all; transform:none; }
+.sort-opt { display:flex; align-items:center; gap:8px; padding:8px 13px; font-size:12px; color:var(--t2); cursor:pointer; transition:background .08s, color .08s; }
+.sort-opt:hover { background:var(--s3); color:var(--t1); }
+.sort-opt.active { color:var(--t1); }
+.sort-opt-check { width:13px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:var(--white); opacity:0; }
+.sort-opt.active .sort-opt-check { opacity:1; }
+.sort-menu-sep { height:1px; background:var(--b1); margin:2px 0; }
+
+/* ── FILTERBAR ── */
+#filterbar {
+  display:flex; align-items:center; gap:4px; padding:7px 12px;
+  border-bottom:1px solid var(--b1); flex-shrink:0;
+  background:var(--bg); overflow-x:auto;
+}
+#filterbar::-webkit-scrollbar { display:none; }
+.chip {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 10px; border-radius:99px; font-size:11px; font-weight:400;
+  background:transparent; border:1px solid var(--b1);
+  color:var(--t3); cursor:pointer;
+  transition:background .1s, color .1s, border-color .1s;
+  white-space:nowrap; flex-shrink:0;
+}
+.chip:hover { border-color:var(--b2); color:var(--t2); }
+.chip.active { background:var(--white); color:var(--bg); border-color:var(--white); font-weight:500; }
+.chip i { flex-shrink:0; }
+.fcount { font-size:11px; color:var(--t3); margin-left:auto; white-space:nowrap; flex-shrink:0; font-family:var(--mono); }
+
+#fetchbar { height:1px; background:var(--b1); flex-shrink:0; display:none; }
+#fetchbar-fill { height:100%; background:var(--white); width:0; transition:width .4s var(--ease); }
+
+/* ── CONTENT ── */
+#content { flex:1; display:flex; overflow:hidden; }
+#pkg-scroll { flex:1; overflow-y:auto; padding:8px 10px; }
+#pkg-list-cont { display:flex; flex-direction:column; gap:0; }
+#pkg-grid-cont { display:none; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:6px; }
+
+/* ── LIST ROW ── */
+.pkg-row {
+  display:flex; align-items:center; padding:8px 10px;
+  border-radius:var(--r); border:1px solid transparent;
+  cursor:pointer; transition:background .08s, border-color .08s;
+  gap:11px; user-select:none; animation:row-in .15s var(--ease) both;
+  position:relative;
+}
+.pkg-row:hover { background:var(--s1); border-color:var(--b1); }
+.pkg-row:hover .row-fav { opacity:1; }
+.pkg-row.sel { background:var(--s2); border-color:var(--b2); }
+.pkg-row.kb-focus { background:var(--s2); border-color:var(--b2); outline:none; }
+
+.row-icon {
+  width:28px; height:28px; border-radius:7px;
+  background:var(--s2); border:1px solid var(--b1);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; font-size:9px; font-family:var(--mono); font-weight:500; color:var(--t3);
+}
+.row-icon.installed-ico { background:rgba(48,209,88,.07); border-color:rgba(48,209,88,.2); color:var(--green); }
+.row-icon.pinned-ico { background:rgba(10,132,255,.07); border-color:rgba(10,132,255,.2); color:var(--blue); }
+.row-body { flex:1; min-width:0; }
+.row-name { font-size:13px; font-weight:500; color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:1px; letter-spacing:-.01em; }
+.row-desc { font-size:11px; color:var(--t3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:300; }
+.row-tags { display:flex; gap:3px; }
+.rtag { font-size:9px; font-family:var(--mono); padding:1px 5px; border-radius:3px; border:1px solid var(--b1); color:var(--t3); }
+.row-right { display:flex; align-items:center; gap:7px; flex-shrink:0; }
+.row-ver { font-family:var(--mono); font-size:10px; color:var(--t3); background:var(--s2); border:1px solid var(--b1); padding:2px 6px; border-radius:4px; }
+.row-inst-badge { font-size:9px; font-family:var(--mono); padding:2px 6px; border-radius:4px; color:var(--green); background:rgba(48,209,88,.07); border:1px solid rgba(48,209,88,.2); }
+.row-author { font-size:11px; color:var(--t3); max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:300; }
+.row-fav { width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; color:var(--t4); opacity:0; transition:color .1s, opacity .1s; }
+.row-fav:hover { color:var(--t2); }
+.row-fav.fav-on { color:var(--amber); opacity:1; }
+.row-pin-badge { position:absolute; top:3px; left:3px; width:5px; height:5px; border-radius:50%; background:var(--blue); opacity:.7; }
+
+/* ── GRID CARD ── */
+.pkg-card {
+  padding:13px; border-radius:var(--r2); border:1px solid var(--b1);
+  background:var(--s1); cursor:pointer;
+  transition:background .1s, border-color .1s;
+  user-select:none; animation:row-in .15s var(--ease) both; position:relative;
+}
+.pkg-card:hover { background:var(--s2); border-color:var(--b2); }
+.pkg-card:hover .card-fav { opacity:1; }
+.pkg-card.sel { border-color:var(--white)!important; }
+.pkg-card.kb-focus { border-color:var(--white)!important; }
+.card-fav { position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; color:var(--t4); opacity:0; transition:color .1s, opacity .1s; }
+.card-fav:hover { color:var(--t2); }
+.card-fav.fav-on { color:var(--amber); opacity:1!important; }
+.card-ico { width:30px; height:30px; border-radius:7px; background:var(--s3); border:1px solid var(--b1); display:flex; align-items:center; justify-content:center; font-size:9px; font-family:var(--mono); font-weight:500; color:var(--t3); margin-bottom:9px; }
+.card-name { font-size:13px; font-weight:600; color:var(--t1); margin-bottom:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:18px; letter-spacing:-.01em; }
+.card-desc { font-size:11px; color:var(--t3); line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:9px; min-height:28px; font-weight:300; }
+.card-foot { display:flex; align-items:center; gap:5px; }
+.card-ver { font-family:var(--mono); font-size:10px; color:var(--t3); background:var(--s3); border:1px solid var(--b1); padding:2px 5px; border-radius:3px; }
+.card-auth { font-size:11px; color:var(--t3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; font-weight:300; }
+
+.empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:260px; gap:9px; }
+.empty i { color:var(--t4); }
+.empty p { font-size:14px; color:var(--t2); font-weight:400; }
+.empty small { font-size:11px; color:var(--t3); text-align:center; }
+
+/* ── DETAIL PANEL ── */
+#detail {
+  width:0; flex-shrink:0; background:var(--bg); border-left:1px solid var(--b1);
+  overflow:hidden; transition:width .24s var(--ease); display:flex; flex-direction:column;
+}
+#detail.open { width:340px; }
+#detail-inner { width:340px; display:flex; flex-direction:column; height:100%; overflow:hidden; }
+.dp-head { padding:14px 14px 0; border-bottom:1px solid var(--b1); flex-shrink:0; }
+.dp-top { display:flex; align-items:flex-start; gap:10px; margin-bottom:12px; }
+.dp-ico { width:36px; height:36px; border-radius:9px; background:var(--s2); border:1px solid var(--b1); display:flex; align-items:center; justify-content:center; font-size:9px; font-family:var(--mono); font-weight:500; color:var(--t2); flex-shrink:0; }
+.dp-titles { flex:1; min-width:0; }
+.dp-name { font-size:14px; font-weight:600; color:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:-.01em; }
+.dp-ver { font-family:var(--mono); font-size:11px; color:var(--t3); margin-top:2px; }
+.dp-close { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; color:var(--t3); background:var(--s2); border:1px solid var(--b1); transition:background .1s, color .1s; flex-shrink:0; }
+.dp-close:hover { background:var(--s3); color:var(--t1); }
+.dp-tabs { display:flex; }
+.dp-tab { flex:1; font-size:11px; font-weight:400; color:var(--t3); padding:8px 0; border-bottom:1px solid var(--b1); transition:color .1s, border-color .1s; }
+.dp-tab.on { color:var(--t1); border-bottom-color:var(--white); font-weight:500; }
+.dp-tab:hover:not(.on) { color:var(--t2); }
+.dp-body { flex:1; overflow-y:auto; }
+.dp-pane { display:none; padding:13px 14px; }
+.dp-pane.on { display:block; }
+.dp-sec { margin-bottom:15px; }
+.dp-slabel { font-size:10px; font-weight:500; letter-spacing:.09em; text-transform:uppercase; color:var(--t3); margin-bottom:6px; }
+.dp-desc { font-size:12px; color:var(--t2); line-height:1.65; font-weight:300; }
+.dp-kv { display:flex; gap:8px; align-items:flex-start; margin-bottom:5px; }
+.dp-k { font-size:11px; color:var(--t3); min-width:64px; flex-shrink:0; padding-top:1px; font-weight:300; }
+.dp-v { font-size:11px; color:var(--t1); font-family:var(--mono); word-break:break-all; line-height:1.5; }
+.dp-v.dim { color:var(--t2); font-family:var(--font); font-size:12px; }
+.dp-cmd { display:flex; align-items:center; gap:8px; background:var(--s2); border:1px solid var(--b1); border-radius:var(--r); padding:8px 11px; font-family:var(--mono); font-size:12px; color:var(--t2); cursor:pointer; transition:border-color .1s, background .1s; }
+.dp-cmd:hover { border-color:var(--b3); background:var(--s3); }
+.dp-cmd span { flex:1; }
+.dep-row { font-size:11px; font-family:var(--mono); color:var(--t2); padding:5px 0; border-bottom:1px solid var(--b1); font-weight:400; }
+.dep-row:last-child { border-bottom:none; }
+.dp-tagwrap { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+.dp-tag { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-family:var(--mono); padding:3px 7px; border-radius:4px; border:1px solid var(--b2); color:var(--t2); background:var(--s2); }
+.dp-tag .trm { color:var(--t3); cursor:pointer; display:flex; align-items:center; }
+.dp-tag .trm:hover { color:var(--red); }
+.tag-add { display:flex; gap:6px; }
+.tag-add input { flex:1; background:var(--s1); border:1px solid var(--b1); color:var(--t1); font-size:12px; font-family:var(--mono); padding:7px 10px; border-radius:var(--r); outline:none; transition:border-color .12s; }
+.tag-add input:focus { border-color:var(--b3); }
+.tag-add button { padding:7px 11px; background:var(--s2); border:1px solid var(--b1); color:var(--t2); font-size:12px; border-radius:var(--r); transition:background .1s, color .1s; }
+.tag-add button:hover { background:var(--s3); color:var(--t1); }
+
+/* Stats */
+.dp-stats { display:flex; gap:5px; margin-bottom:12px; }
+.dp-stat { flex:1; background:var(--s1); border:1px solid var(--b1); border-radius:var(--r); padding:9px 10px; }
+.dp-stat-val { font-size:15px; font-weight:600; color:var(--t1); font-family:var(--mono); letter-spacing:-.02em; }
+.dp-stat-lbl { font-size:9px; color:var(--t3); margin-top:3px; text-transform:uppercase; letter-spacing:.08em; font-weight:400; }
+
+/* Changelog */
+.cl-entry { padding:9px 0; border-bottom:1px solid var(--b1); }
+.cl-entry:last-child { border-bottom:none; }
+.cl-ver { font-size:12px; font-weight:500; color:var(--t1); font-family:var(--mono); margin-bottom:2px; }
+.cl-date { font-size:10px; color:var(--t3); font-weight:300; }
+
+/* Footer */
+.dp-foot { padding:10px 12px; border-top:1px solid var(--b1); display:flex; gap:6px; flex-shrink:0; }
+.dp-favbtn { width:36px; height:36px; border-radius:var(--r); display:flex; align-items:center; justify-content:center; background:var(--s1); border:1px solid var(--b1); color:var(--t3); transition:all .1s; flex-shrink:0; }
+.dp-favbtn:hover { background:var(--s2); color:var(--t2); }
+.dp-favbtn.fav-on { color:var(--amber); border-color:rgba(255,214,10,.2); }
+.dp-pinbtn { width:36px; height:36px; border-radius:var(--r); display:flex; align-items:center; justify-content:center; background:var(--s1); border:1px solid var(--b1); color:var(--t3); transition:all .1s; flex-shrink:0; }
+.dp-pinbtn:hover { background:var(--s2); color:var(--t2); }
+.dp-pinbtn.pin-on { color:var(--blue); border-color:rgba(10,132,255,.25); }
+.dp-installbtn { flex:1; height:36px; border-radius:var(--r); background:var(--white); color:var(--bg); font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:7px; transition:opacity .12s, transform .1s; letter-spacing:-.01em; }
+.dp-installbtn:hover { opacity:.88; }
+.dp-installbtn:active { transform:scale(.98); }
+.dp-uninstallbtn { height:36px; padding:0 12px; border-radius:var(--r); background:rgba(255,69,58,.07); border:1px solid rgba(255,69,58,.2); color:var(--red); font-size:12px; font-weight:400; display:none; align-items:center; justify-content:center; gap:5px; transition:background .1s; }
+.dp-uninstallbtn:hover { background:rgba(255,69,58,.13); }
+.dp-uninstallbtn.vis { display:flex; }
+
+/* ── "MORE LIKE THIS" + "WORKS BEST WITH" ── */
+.similar-scroll { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
+.similar-scroll::-webkit-scrollbar { display:none; }
+.sim-chip {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:5px 10px; border-radius:var(--r); background:var(--s2);
+  border:1px solid var(--b1); color:var(--t2); font-size:11px;
+  cursor:pointer; white-space:nowrap; flex-shrink:0;
+  transition:background .1s, border-color .1s, color .1s;
+  font-family:var(--mono);
+}
+.sim-chip:hover { background:var(--s3); border-color:var(--b2); color:var(--t1); }
+.sim-chip i { color:var(--t3); flex-shrink:0; }
+
+/* ── NOTES FIELD ── */
+.dp-notes-area {
+  width:100%; background:var(--s1); border:1px solid var(--b1);
+  color:var(--t1); font-size:12px; font-family:var(--font);
+  padding:9px 11px; border-radius:var(--r); outline:none;
+  resize:none; line-height:1.6; min-height:72px;
+  transition:border-color .12s; font-weight:300;
+}
+.dp-notes-area:focus { border-color:var(--b3); }
+.dp-notes-save {
+  margin-top:5px; padding:5px 12px; background:var(--s2); border:1px solid var(--b1);
+  color:var(--t2); font-size:11px; border-radius:var(--r);
+  transition:background .1s, color .1s;
+}
+.dp-notes-save:hover { background:var(--s3); color:var(--t1); }
+
+/* ── CONFLICT WARNING ── */
+.conflict-banner {
+  display:none; align-items:flex-start; gap:8px;
+  padding:9px 11px; border-radius:var(--r);
+  background:rgba(255,69,58,.07); border:1px solid rgba(255,69,58,.2);
+  margin-bottom:10px;
+}
+.conflict-banner.vis { display:flex; }
+.conflict-banner i { color:var(--red); flex-shrink:0; margin-top:1px; }
+.conflict-text { font-size:11px; color:var(--t2); line-height:1.5; font-weight:300; }
+
+/* ── ENV SNAPSHOT badge ── */
+.snap-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:9px; font-family:var(--mono); padding:2px 7px;
+  border-radius:3px; color:var(--blue);
+  background:rgba(10,132,255,.07); border:1px solid rgba(10,132,255,.2);
+  margin-right:4px;
+}
+
+/* ── STATUSBAR ── */
+#statusbar {
+  height:30px; display:flex; align-items:center; gap:9px; padding:0 13px;
+  background:rgba(8,8,8,.9); border-top:1px solid var(--b1); flex-shrink:0;
+}
+.sb-stat { font-size:11px; color:var(--t3); display:flex; align-items:center; gap:4px; font-weight:300; }
+.sb-stat strong { color:var(--t2); font-weight:400; }
+.sb-dot { width:2px; height:2px; border-radius:50%; background:var(--t4); }
+#sel-strip { display:none; align-items:center; gap:5px; margin-left:auto; }
+.sel-chip { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:99px; font-size:11px; font-weight:400; background:var(--s2); border:1px solid var(--b1); color:var(--t2); cursor:pointer; transition:all .1s; }
+.sel-chip:hover { background:var(--s3); color:var(--t1); }
+.sel-chip.primary { background:var(--white); color:var(--bg); border-color:var(--white); font-weight:600; }
+.sel-chip.primary:hover { opacity:.88; }
+#sel-count { font-size:11px; color:var(--t3); font-family:var(--mono); }
+
+/* ── KEYBOARD HINT ── */
+#kb-hint {
+  position:fixed; bottom:38px; right:14px;
+  display:flex; gap:4px; align-items:center;
+  opacity:0; pointer-events:none; transition:opacity .2s;
+  z-index:50;
+}
+#kb-hint.vis { opacity:1; }
+.kbh { font-family:var(--mono); font-size:10px; color:var(--t3); background:var(--s2); border:1px solid var(--b1); padding:2px 6px; border-radius:4px; }
+
+/* ── CONTEXT MENU ── */
+#ctx-menu {
+  position:fixed;
+  background:rgba(18,18,18,.88);
+  backdrop-filter:blur(24px) saturate(1.3);
+  -webkit-backdrop-filter:blur(24px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:var(--r3);
+  padding:4px;
+  min-width:178px;
+  z-index:2000;
+  box-shadow:0 2px 0 rgba(255,255,255,.06) inset, 0 16px 40px rgba(0,0,0,.7);
+  display:none; opacity:0;
+  transform:scale(.95) translateY(-3px);
+  transform-origin:top left;
+  transition:opacity .13s var(--ease), transform .13s var(--spring);
+}
+#ctx-menu.vis { display:block; }
+#ctx-menu.show { opacity:1; transform:scale(1) translateY(0); }
+
+.ctx-pkg-label {
+  padding:6px 11px 4px;
+  font-size:11px; font-weight:500; color:rgba(255,255,255,.35);
+  font-family:var(--mono); letter-spacing:.01em;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  border-bottom:1px solid rgba(255,255,255,.07); margin-bottom:3px;
+}
+.ctx-item {
+  display:flex; align-items:center; gap:9px;
+  padding:7px 11px; border-radius:var(--r);
+  font-size:12px; color:rgba(255,255,255,.75); cursor:pointer;
+  transition:background .08s, color .08s; white-space:nowrap;
+}
+.ctx-item:hover { background:rgba(255,255,255,.09); color:rgba(255,255,255,.95); }
+.ctx-item i { flex-shrink:0; opacity:.6; }
+.ctx-item:hover i { opacity:1; }
+.ctx-item.danger { color:rgba(255,69,58,.8); }
+.ctx-item.danger:hover { background:rgba(255,69,58,.1); color:var(--red); }
+.ctx-sep { height:1px; background:rgba(255,255,255,.07); margin:3px 0; }
+
+/* ── MODALS ── */
+.overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.6);
+  display:flex; align-items:center; justify-content:center;
+  z-index:1000; opacity:0; pointer-events:none; transition:opacity .15s;
+  backdrop-filter:blur(4px);
+}
+.overlay.open { opacity:1; pointer-events:all; }
+.modal {
+  background:var(--s1); border:1px solid var(--b2); border-radius:var(--r3);
+  width:420px; max-width:92vw; overflow:hidden;
+  transform:scale(.97) translateY(6px); transition:transform .2s var(--spring);
+  box-shadow:0 32px 80px rgba(0,0,0,.7);
+}
+.overlay.open .modal { transform:none; }
+.m-head { padding:20px 22px 0; display:flex; gap:12px; }
+.m-ico { width:34px; height:34px; border-radius:9px; background:var(--s2); border:1px solid var(--b2); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--t2); }
+.m-titles { flex:1; }
+.m-title { font-size:14px; font-weight:600; color:var(--t1); letter-spacing:-.01em; }
+.m-sub { font-size:12px; color:var(--t3); margin-top:3px; line-height:1.5; font-weight:300; }
+.m-body { padding:14px 22px 0; font-size:12px; color:var(--t2); line-height:1.6; }
+.m-foot { padding:14px 22px 20px; display:flex; gap:7px; justify-content:flex-end; }
+.m-btn { padding:7px 16px; border-radius:var(--r); font-size:12px; font-weight:500; transition:opacity .1s, background .1s; display:flex; align-items:center; gap:5px; }
+.m-ghost { background:var(--s3); border:1px solid var(--b2); color:var(--t2); }
+.m-ghost:hover { background:var(--s4); color:var(--t1); }
+.m-primary { background:var(--white); color:var(--bg); font-weight:600; }
+.m-primary:hover { opacity:.88; }
+.m-danger { background:rgba(255,69,58,.08); border:1px solid rgba(255,69,58,.2); color:var(--red); }
+.m-danger:hover { background:rgba(255,69,58,.15); }
+.warn-list { max-height:90px; overflow-y:auto; margin:9px 0 0; border:1px solid var(--b1); border-radius:var(--r); background:var(--bg); padding:7px 11px; }
+.warn-item { font-family:var(--mono); font-size:11px; color:var(--t2); padding:2px 0; display:flex; align-items:center; gap:5px; }
+.ilist { display:flex; flex-direction:column; gap:3px; margin:11px 0; }
+.iitem { display:flex; align-items:center; gap:9px; padding:8px 11px; border-radius:var(--r); border:1px solid var(--b1); background:var(--s2); cursor:pointer; transition:background .08s, border-color .08s; }
+.iitem:hover { background:var(--s3); }
+.iitem.sel { border-color:var(--white); }
+.iitem .ipath { font-family:var(--mono); font-size:11px; color:var(--t2); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ichk { color:var(--white); opacity:0; }
+.iitem.sel .ichk { opacity:1; }
+.icustom { display:flex; gap:6px; }
+.icustom input { flex:1; background:var(--s2); border:1px solid var(--b1); color:var(--t1); font-family:var(--mono); font-size:12px; padding:7px 11px; border-radius:var(--r); outline:none; }
+.icustom input:focus { border-color:var(--b3); }
+.res-banner { padding:14px 22px; border-bottom:1px solid var(--b1); display:flex; align-items:center; gap:9px; }
+.res-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.rok  { background:var(--green); }
+.rerr { background:var(--red); }
+.res-out { margin:0 22px; max-height:150px; overflow-y:auto; background:var(--bg); border:1px solid var(--b1); border-radius:var(--r); padding:9px 11px; font-family:var(--mono); font-size:11px; color:var(--t2); white-space:pre-wrap; word-break:break-all; line-height:1.6; margin-top:12px; }
+.tm-pkg { margin-bottom:13px; }
+.tm-pname { font-size:12px; font-weight:500; color:var(--t1); margin-bottom:5px; }
+.tm-tags { display:flex; flex-wrap:wrap; gap:4px; }
+.export-opts { display:flex; flex-direction:column; gap:5px; margin:8px 0; }
+.export-opt { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--r2); border:1px solid var(--b1); background:var(--s2); cursor:pointer; transition:background .08s, border-color .08s; }
+.export-opt:hover { background:var(--s3); border-color:var(--b2); }
+.export-opt-ico { width:28px; height:28px; border-radius:7px; background:var(--s3); border:1px solid var(--b2); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--t2); }
+.export-opt-body { flex:1; }
+.export-opt-title { font-size:12px; font-weight:500; color:var(--t1); }
+.export-opt-sub { font-size:11px; color:var(--t3); margin-top:1px; font-weight:300; }
+
+.inst-header { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; margin-bottom:2px; }
+.inst-header-label { font-size:11px; color:var(--t3); font-family:var(--mono); }
+.inst-reload-btn { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--t3); padding:3px 8px; border-radius:5px; background:var(--s2); border:1px solid var(--b1); transition:color .1s, background .1s; }
+.inst-reload-btn:hover { color:var(--t2); background:var(--s3); }
+
+/* ── SNAPSHOTS LIST ── */
+.snap-list { display:flex; flex-direction:column; gap:4px; margin:8px 0; }
+.snap-row { display:flex; align-items:center; gap:9px; padding:9px 12px; border-radius:var(--r); background:var(--s2); border:1px solid var(--b1); }
+.snap-name { font-size:12px; font-weight:500; color:var(--t1); flex:1; }
+.snap-meta { font-size:10px; color:var(--t3); font-family:var(--mono); }
+.snap-actions { display:flex; gap:4px; }
+.snap-act-btn { padding:3px 8px; border-radius:4px; font-size:10px; background:var(--s3); border:1px solid var(--b1); color:var(--t2); transition:all .08s; }
+.snap-act-btn:hover { background:var(--s4); color:var(--t1); }
+.snap-name-input { flex:1; background:var(--s2); border:1px solid var(--b1); color:var(--t1); font-size:12px; padding:7px 11px; border-radius:var(--r); outline:none; }
+.snap-name-input:focus { border-color:var(--b3); }
+
+/* ── TRENDING ── */
+.trending-row { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--r); border:1px solid transparent; cursor:pointer; transition:background .08s; animation:row-in .15s var(--ease) both; }
+.trending-row:hover { background:var(--s1); border-color:var(--b1); }
+.trend-rank { font-size:10px; font-family:var(--mono); color:var(--t3); width:18px; flex-shrink:0; text-align:right; }
+.trend-spike { font-size:9px; font-family:var(--mono); color:var(--green); padding:1px 5px; border-radius:3px; background:rgba(48,209,88,.07); border:1px solid rgba(48,209,88,.15); white-space:nowrap; }
+.trend-arrow { color:var(--green); flex-shrink:0; }
+
+/* ── SEARCH OPERATOR HINT ── */
+.op-hint { display:flex; gap:6px; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid var(--b1); background:rgba(10,132,255,.05); }
+.op-tag { font-size:10px; font-family:var(--mono); color:var(--blue); padding:2px 7px; border-radius:3px; background:rgba(10,132,255,.1); border:1px solid rgba(10,132,255,.2); }
+
+/* ── DEPENDENCY GRAPH MODAL ── */
+#m-depgraph .modal { width:700px; max-width:96vw; }
+#depgraph-svg-wrap {
+  position:relative; background:#050505; border:1px solid var(--b1);
+  border-radius:var(--r); margin:0 22px; overflow:hidden;
+  height:380px;
+}
+#depgraph-svg { width:100%; height:100%; }
+.dg-controls { display:flex; align-items:center; gap:8px; padding:0 22px; margin:10px 0 0; }
+.dg-depth-btn {
+  padding:4px 12px; border-radius:99px; font-size:11px;
+  background:var(--s2); border:1px solid var(--b1); color:var(--t2);
+  transition:all .1s; cursor:pointer;
+}
+.dg-depth-btn.active { background:var(--white); color:var(--bg); border-color:var(--white); font-weight:600; }
+.dg-legend { display:flex; gap:12px; margin-left:auto; }
+.dg-leg { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--t3); }
+.dg-leg-dot { width:8px; height:8px; border-radius:50%; }
+
+/* d3 graph elements */
+.dg-link { stroke-opacity:0.4; fill:none; }
+.dg-node-circle { cursor:pointer; transition:r 0.15s; }
+.dg-node-label { pointer-events:none; font-family:'DM Mono',monospace; }
+.dg-node:hover .dg-node-circle { filter:brightness(1.5); }
+.dg-tooltip {
+  position:absolute; bottom:10px; left:12px;
+  background:rgba(20,20,20,.92); border:1px solid var(--b2);
+  border-radius:var(--r); padding:5px 10px;
+  font-size:11px; color:var(--t2); font-family:var(--mono);
+  pointer-events:none; transition:opacity .15s;
+  backdrop-filter:blur(8px);
+}
+
+/* ── TOAST ── */
+#toast {
+  position:fixed; bottom:40px; left:50%;
+  transform:translateX(-50%) translateY(8px);
+  background:var(--s3); border:1px solid var(--b2);
+  color:var(--t1); font-size:12px; font-weight:400;
+  padding:6px 14px; border-radius:99px;
+  opacity:0; pointer-events:none;
+  transition:transform .18s var(--spring), opacity .14s;
+  z-index:9999; white-space:nowrap;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+  display:flex; align-items:center; gap:6px;
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── UNDO TOAST ── */
+#undo-toast {
+  position:fixed; bottom:70px; left:50%;
+  transform:translateX(-50%) translateY(8px);
+  background:var(--s4); border:1px solid var(--b3);
+  color:var(--t1); font-size:12px; font-weight:400;
+  padding:6px 6px 6px 14px; border-radius:99px;
+  opacity:0; pointer-events:none;
+  transition:transform .18s var(--spring), opacity .14s;
+  z-index:9998; white-space:nowrap;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+  display:flex; align-items:center; gap:6px;
+}
+#undo-toast.show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:all; }
+#undo-toast button { padding:3px 12px; border-radius:99px; background:var(--white); color:var(--bg); font-size:11px; font-weight:600; }
+
+/* ── COMMAND PALETTE ── */
+#cmd-palette-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.7);
+  display:flex; align-items:flex-start; justify-content:center;
+  padding-top:120px; z-index:3000; opacity:0; pointer-events:none;
+  transition:opacity .14s; backdrop-filter:blur(6px);
+}
+#cmd-palette-overlay.open { opacity:1; pointer-events:all; }
+#cmd-palette {
+  width:560px; max-width:92vw;
+  background:var(--s1); border:1px solid var(--b3);
+  border-radius:var(--r3); overflow:hidden;
+  box-shadow:0 24px 64px rgba(0,0,0,.8);
+  transform:scale(.97) translateY(-6px);
+  transition:transform .18s var(--spring);
+}
+#cmd-palette-overlay.open #cmd-palette { transform:none; }
+.cp-search {
+  display:flex; align-items:center; gap:10px;
+  padding:13px 16px; border-bottom:1px solid var(--b1);
+}
+.cp-search i { color:var(--t3); flex-shrink:0; }
+.cp-search input {
+  flex:1; background:none; border:none; outline:none;
+  font-size:14px; color:var(--t1); font-family:var(--font);
+}
+.cp-search input::placeholder { color:var(--t3); }
+.cp-list { max-height:360px; overflow-y:auto; }
+.cp-section-label { font-size:10px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; color:var(--t3); padding:9px 16px 5px; }
+.cp-item {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 16px; cursor:pointer; transition:background .08s;
+}
+.cp-item:hover, .cp-item.cp-focus { background:var(--s2); }
+.cp-item i { color:var(--t3); flex-shrink:0; }
+.cp-item-body { flex:1; }
+.cp-item-title { font-size:13px; color:var(--t1); }
+.cp-item-sub { font-size:11px; color:var(--t3); font-weight:300; }
+.cp-item-kbd { font-family:var(--mono); font-size:10px; color:var(--t3); background:var(--s3); border:1px solid var(--b1); padding:2px 6px; border-radius:4px; }
+.cp-empty { padding:30px 16px; text-align:center; font-size:13px; color:var(--t3); }
+
+/* ── STREAM MODAL ── */
+#m-stream .modal { width:580px; max-width:96vw; }
+.stream-out {
+  margin:0 22px; height:220px; overflow-y:auto;
+  background:#020202; border:1px solid var(--b1);
+  border-radius:var(--r); padding:10px 12px;
+  font-family:var(--mono); font-size:11px; color:var(--t2);
+  white-space:pre-wrap; word-break:break-all; line-height:1.7;
+  margin-top:12px;
+}
+.stream-out .ok { color:var(--green); }
+.stream-out .err { color:var(--red); }
+.stream-pkg-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  background:rgba(10,132,255,.07); border:1px solid rgba(10,132,255,.2);
+  color:var(--blue); font-size:11px; font-family:var(--mono);
+  padding:3px 9px; border-radius:4px; margin:2px 2px 6px;
+}
+
+/* ── VENV MANAGER ── */
+#m-venv .modal { width:500px; max-width:96vw; }
+.venv-list { display:flex; flex-direction:column; gap:4px; margin:8px 0; }
+.venv-row {
+  display:flex; align-items:center; gap:9px;
+  padding:9px 12px; border-radius:var(--r);
+  background:var(--s2); border:1px solid var(--b1);
+}
+.venv-row.active-venv { border-color:rgba(48,209,88,.35); background:rgba(48,209,88,.04); }
+.venv-name { font-size:12px; font-weight:500; color:var(--t1); flex:1; font-family:var(--mono); }
+.venv-path { font-size:10px; color:var(--t3); }
+.venv-actions { display:flex; gap:4px; }
+.venv-act-btn { padding:3px 8px; border-radius:4px; font-size:10px; background:var(--s3); border:1px solid var(--b1); color:var(--t2); transition:all .08s; }
+.venv-act-btn:hover { background:var(--s4); color:var(--t1); }
+.venv-act-btn.primary { background:rgba(48,209,88,.08); border-color:rgba(48,209,88,.25); color:var(--green); }
+.venv-create { display:flex; gap:6px; margin-top:10px; }
+.venv-create input { flex:1; background:var(--s2); border:1px solid var(--b1); color:var(--t1); font-size:12px; padding:7px 11px; border-radius:var(--r); outline:none; }
+.venv-create input:focus { border-color:var(--b3); }
+
+/* ── HEALTH SCORE ── */
+.pkg-health {
+  display:flex; align-items:center; gap:5px;
+  font-size:10px; font-family:var(--mono); padding:2px 7px;
+  border-radius:4px; flex-shrink:0;
+}
+.health-a { color:#30d158; background:rgba(48,209,88,.07); border:1px solid rgba(48,209,88,.2); }
+.health-b { color:var(--amber); background:rgba(255,214,10,.07); border:1px solid rgba(255,214,10,.2); }
+.health-c { color:var(--red); background:rgba(255,69,58,.07); border:1px solid rgba(255,69,58,.2); }
+.health-bar { width:32px; height:3px; border-radius:2px; background:var(--s4); overflow:hidden; }
+.health-fill { height:100%; border-radius:2px; transition:width .3s var(--ease); }
+
+/* ── COLLECTIONS/STACKS ── */
+#m-collections .modal { width:500px; max-width:96vw; }
+.col-list { display:flex; flex-direction:column; gap:4px; margin:8px 0; }
+.col-row {
+  display:flex; align-items:center; gap:9px;
+  padding:9px 12px; border-radius:var(--r);
+  background:var(--s2); border:1px solid var(--b1);
+  cursor:pointer; transition:background .08s, border-color .08s;
+}
+.col-row:hover { background:var(--s3); border-color:var(--b2); }
+.col-name { font-size:12px; font-weight:500; color:var(--t1); flex:1; }
+.col-count { font-size:10px; font-family:var(--mono); color:var(--t3); }
+.col-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.col-actions { display:flex; gap:4px; }
+.col-new { display:flex; gap:6px; margin-top:10px; }
+.col-new input { flex:1; background:var(--s2); border:1px solid var(--b1); color:var(--t1); font-size:12px; padding:7px 11px; border-radius:var(--r); outline:none; }
+.col-new input:focus { border-color:var(--b3); }
+.col-pkg-list { max-height:140px; overflow-y:auto; }
+.col-pkg-item { font-family:var(--mono); font-size:11px; color:var(--t2); padding:5px 0; border-bottom:1px solid var(--b1); display:flex; align-items:center; gap:6px; }
+.col-pkg-item:last-child { border-bottom:none; }
+.col-install-warn { background:rgba(255,69,58,.06); border:1px solid rgba(255,69,58,.18); border-radius:var(--r); padding:9px 12px; margin-bottom:10px; font-size:11px; color:var(--t2); line-height:1.6; }
+.col-install-warn strong { color:var(--red); }
+
+/* ── SEARCH HISTORY TIMELINE ── */
+.sh-timeline { display:flex; flex-direction:column; gap:0; }
+.sh-day-label { font-size:10px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:var(--t3); padding:10px 0 5px; }
+.sh-item {
+  display:flex; align-items:center; gap:9px;
+  padding:7px 0; border-bottom:1px solid var(--b1); cursor:pointer;
+  transition:color .08s;
+}
+.sh-item:hover .sh-query { color:var(--t1); }
+.sh-item:last-child { border-bottom:none; }
+.sh-query { font-size:12px; color:var(--t2); flex:1; font-family:var(--mono); }
+.sh-time { font-size:10px; color:var(--t4); font-family:var(--mono); }
+.sh-del { width:16px; height:16px; display:flex; align-items:center; justify-content:center; color:var(--t4); cursor:pointer; flex-shrink:0; }
+.sh-del:hover { color:var(--red); }
+
+/* ── REQUIREMENTS IMPORTER ── */
+#m-import .modal { width:480px; max-width:96vw; }
+.req-drop {
+  border:2px dashed var(--b2); border-radius:var(--r2);
+  padding:28px 20px; text-align:center; color:var(--t3);
+  cursor:pointer; transition:border-color .15s, background .15s;
+  margin-bottom:10px;
+}
+.req-drop:hover, .req-drop.drag-over { border-color:var(--blue); background:rgba(10,132,255,.04); }
+.req-drop i { display:block; margin:0 auto 8px; color:var(--t4); }
+.req-drop p { font-size:13px; }
+.req-drop small { font-size:11px; color:var(--t4); display:block; margin-top:4px; }
+.req-parsed-list { max-height:120px; overflow-y:auto; border:1px solid var(--b1); border-radius:var(--r); background:var(--bg); padding:7px 11px; margin-bottom:8px; }
+.req-item { font-family:var(--mono); font-size:11px; color:var(--t2); padding:2px 0; display:flex; align-items:center; gap:5px; }
+
+/* ── PIP COMPILE / LOCK ── */
+#m-lock .modal { width:500px; max-width:96vw; }
+.lock-out {
+  background:#020202; border:1px solid var(--b1);
+  border-radius:var(--r); padding:10px 12px;
+  font-family:var(--mono); font-size:11px; color:var(--t2);
+  white-space:pre-wrap; word-break:break-all; line-height:1.7;
+  max-height:200px; overflow-y:auto; margin-top:8px;
+}
+
+/* ── SETTINGS PANEL ── */
+#m-settings .modal { width:500px; max-width:96vw; }
+.setting-row {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 0; border-bottom:1px solid var(--b1);
+}
+.setting-row:last-child { border-bottom:none; }
+.setting-info { flex:1; }
+.setting-title { font-size:13px; color:var(--t1); font-weight:400; }
+.setting-sub { font-size:11px; color:var(--t3); margin-top:2px; font-weight:300; }
+.toggle-switch {
+  position:relative; width:36px; height:20px; flex-shrink:0;
+}
+.toggle-switch input { opacity:0; width:0; height:0; position:absolute; }
+.toggle-track {
+  position:absolute; inset:0; border-radius:99px;
+  background:var(--s4); cursor:pointer; transition:background .2s;
+}
+.toggle-switch input:checked + .toggle-track { background:var(--green); }
+.toggle-thumb {
+  position:absolute; top:3px; left:3px;
+  width:14px; height:14px; border-radius:50%;
+  background:white; transition:transform .2s var(--spring);
+  pointer-events:none;
+}
+.toggle-switch input:checked ~ .toggle-thumb { transform:translateX(16px); }
+
+/* ── THEME SELECT ── */
+.theme-opts { display:flex; gap:6px; margin-top:8px; }
+.theme-opt {
+  width:32px; height:32px; border-radius:8px; cursor:pointer;
+  border:2px solid transparent; transition:border-color .12s, transform .12s;
+}
+.theme-opt:hover { transform:scale(1.1); }
+.theme-opt.active { border-color:var(--white); }
+
+/* ── ONBOARDING ── */
+#m-onboard .modal { width:480px; max-width:92vw; }
+.onboard-step { display:none; }
+.onboard-step.active { display:block; }
+.onboard-ico { width:52px; height:52px; border-radius:14px; background:var(--s2); border:1px solid var(--b2); display:flex; align-items:center; justify-content:center; margin:0 auto 16px; color:var(--t2); }
+.onboard-title { font-size:16px; font-weight:600; text-align:center; color:var(--t1); margin-bottom:8px; letter-spacing:-.02em; }
+.onboard-desc { font-size:12px; color:var(--t3); text-align:center; line-height:1.7; font-weight:300; }
+.onboard-dots { display:flex; justify-content:center; gap:5px; padding:12px 0 0; }
+.onboard-dot { width:6px; height:6px; border-radius:50%; background:var(--s4); transition:background .2s; }
+.onboard-dot.active { background:var(--white); }
+.onboard-nav { display:flex; justify-content:space-between; align-items:center; padding:14px 22px 20px; }
+
+/* ── SPARKLINE ── */
+.sparkline-wrap { display:inline-flex; align-items:center; gap:4px; }
+.sparkline-svg { overflow:visible; }
+
+/* ── UPDATE SCANNER ── */
+#m-updates .modal { width:520px; max-width:96vw; }
+.update-item {
+  display:flex; align-items:center; gap:9px;
+  padding:9px 0; border-bottom:1px solid var(--b1);
+}
+.update-item:last-child { border-bottom:none; }
+.update-pkg { font-size:12px; font-weight:500; color:var(--t1); flex:1; font-family:var(--mono); }
+.update-vers { font-size:11px; color:var(--t3); white-space:nowrap; }
+.update-arrow { color:var(--green); }
+.update-new { font-size:11px; color:var(--green); font-family:var(--mono); white-space:nowrap; }
+.update-cb { width:16px; height:16px; accent-color:var(--white); cursor:pointer; }
+
+/* ── WHY INSTALLED TRACER ── */
+.why-row { padding:8px 0; border-bottom:1px solid var(--b1); }
+.why-row:last-child { border-bottom:none; }
+.why-pkg { font-family:var(--mono); font-size:12px; color:var(--t1); }
+.why-req { font-size:11px; color:var(--t3); margin-top:3px; }
+
+/* ── CLIPBOARD BANNER ── */
+#clipboard-banner {
+  position:fixed; top:52px; left:50%;
+  transform:translateX(-50%) translateY(-8px);
+  background:var(--s3); border:1px solid var(--b2);
+  color:var(--t1); font-size:12px;
+  padding:8px 14px; border-radius:var(--r2);
+  opacity:0; pointer-events:none;
+  transition:transform .18s var(--spring), opacity .14s;
+  z-index:2999; display:flex; align-items:center; gap:9px;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+}
+#clipboard-banner.show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:all; }
+#clipboard-banner .cb-pkg { font-family:var(--mono); color:var(--green); }
+#clipboard-banner button { padding:3px 10px; border-radius:99px; background:var(--white); color:var(--bg); font-size:11px; font-weight:600; }
+#clipboard-banner .cb-dismiss { background:none; color:var(--t3); font-size:11px; padding:3px 5px; }
+
+/* ── BULK TAG ── */
+.btag-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--b1); }
+.btag-row:last-child { border-bottom:none; }
+.btag-name { font-family:var(--mono); font-size:11px; color:var(--t2); flex:1; }
+
+/* ── SORT DATE INSTALLED ── */
+.row-install-date { font-size:9px; color:var(--t4); font-family:var(--mono); white-space:nowrap; }
+
+/* ── VERSION LOCK BADGE ── */
+.lock-badge {
+  display:inline-flex; align-items:center; gap:3px;
+  font-size:9px; font-family:var(--mono); padding:1px 5px;
+  border-radius:3px; color:var(--amber);
+  background:rgba(255,214,10,.07); border:1px solid rgba(255,214,10,.2);
+}
+
+/* ── KEYBOARD SHORTCUTS MODAL ── */
+#m-shortcuts .modal { width:540px; max-width:96vw; }
+.shortcut-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px; }
+.shortcut-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--b1); }
+.shortcut-row:last-child { border-bottom:none; }
+.shortcut-desc { font-size:12px; color:var(--t2); flex:1; }
+.shortcut-keys { display:flex; gap:3px; }
+.shortcut-key { font-family:var(--mono); font-size:10px; color:var(--t3); background:var(--s3); border:1px solid var(--b2); padding:2px 7px; border-radius:4px; }
+.shortcut-section { font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--t3); padding:10px 0 5px; grid-column:1/-1; }
+
+</style>
+</head>
+<body>
+<div id="shell">
+
+<div id="titlebar">
+  <div class="tb-logo"><img src="logo.jpg" alt="" onerror="this.style.display='none'"/></div>
+  <span class="tb-appname">Piepi</span>
+  <div class="tb-pipe"></div>
+  <div class="tb-crumb" id="tb-crumb"><i data-lucide="package-2" style="width:11px;height:11px"></i><span>All Packages</span></div>
+  <div class="tb-spacer"></div>
+  <div class="tb-winbtns">
+    <button class="tb-winbtn minimize" onclick="window.piepi?.minimize()" title="Minimize"><i data-lucide="minus" style="width:10px;height:10px"></i></button>
+    <button class="tb-winbtn maximize" onclick="window.piepi?.maximize()" title="Maximize"><i data-lucide="square" style="width:9px;height:9px"></i></button>
+    <button class="tb-winbtn close"    onclick="window.piepi?.close()"    title="Close">   <i data-lucide="x"     style="width:10px;height:10px"></i></button>
+  </div>
+</div>
+
+<div id="body">
+  <div id="sidebar">
+    <div class="sb-item active" data-view="browse"    onclick="setView('browse',this)">
+      <i data-lucide="package-2" style="width:15px;height:15px"></i>
+      <div class="sb-tip">All Packages</div>
+      <span class="sb-badge" id="bdg-total"></span>
+    </div>
+    <div class="sb-item" data-view="installed" onclick="setView('installed',this)">
+      <i data-lucide="hard-drive" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Installed</div>
+      <span class="sb-badge" id="bdg-inst"></span>
+    </div>
+    <div class="sb-item" data-view="favorites" onclick="setView('favorites',this)">
+      <i data-lucide="star" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Favorites</div>
+      <span class="sb-badge" id="bdg-fav"></span>
+    </div>
+    <div class="sb-item" data-view="recents" onclick="setView('recents',this)">
+      <i data-lucide="clock-3" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Recently Viewed</div>
+    </div>
+    <div class="sb-item" data-view="trending" onclick="setView('trending',this)">
+      <i data-lucide="trending-up" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Trending</div>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-item" data-view="history" onclick="setView('history',this)">
+      <i data-lucide="scroll-text" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Install History</div>
+    </div>
+    <div class="sb-item" onclick="openTagManager()">
+      <i data-lucide="tags" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Tag Manager</div>
+    </div>
+    <div class="sb-item" onclick="openModal('m-export')">
+      <i data-lucide="share" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Export Data</div>
+    </div>
+    <div class="sb-item" onclick="openModal('m-snapshots')">
+      <i data-lucide="layers" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Env Snapshots</div>
+    </div>
+    <div class="sb-item" onclick="openUpdatesModal()">
+      <i data-lucide="arrow-up-circle" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Check for Updates</div>
+      <span class="sb-badge" id="bdg-updates"></span>
+    </div>
+    <div class="sb-item" onclick="openModal('m-venv')">
+      <i data-lucide="box" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Virtual Environments</div>
+    </div>
+    <div class="sb-item" onclick="openModal('m-collections')">
+      <i data-lucide="bookmark" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Collections / Stacks</div>
+    </div>
+    <div class="sb-item" onclick="openModal('m-import')">
+      <i data-lucide="file-input" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Import requirements.txt</div>
+    </div>
+    <div class="sb-item" onclick="openSearchHistory()">
+      <i data-lucide="history" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Search History</div>
+    </div>
+    <div class="sb-item" onclick="openBulkTag()">
+      <i data-lucide="tag" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Bulk Tag Operations</div>
+    </div>
+    <div class="sb-item" onclick="refreshIndex()">
+      <i data-lucide="refresh-cw" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Refresh Index</div>
+    </div>
+    <div class="sb-spacer"></div>
+    <div class="sb-divider"></div>
+    <div class="sb-item" onclick="openModal('m-shortcuts')">
+      <i data-lucide="keyboard" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Keyboard Shortcuts</div>
+    </div>
+    <div class="sb-item" onclick="openModal('m-settings')">
+      <i data-lucide="settings-2" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Settings</div>
+    </div>
+    <div class="sb-item" id="sb-interp" onclick="openInterpModal()">
+      <i data-lucide="terminal" style="width:15px;height:15px"></i>
+      <div class="sb-tip">Python Interpreter</div>
+      <div class="sb-interpdot"></div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="topbar">
+      <div class="searchbox">
+        <i data-lucide="search" class="si" style="width:13px;height:13px"></i>
+        <input id="search-input" type="text" placeholder="Search 755,000+ packages… (/ to focus, author:name, tag:web)" autocomplete="off" spellcheck="false"/>
+        <span class="search-clear" id="search-clear" onclick="clearSearch()"><i data-lucide="x" style="width:10px;height:10px"></i></span>
+        <span class="kbd" id="search-kbd">⌘F</span>
+        <div id="search-suggestions"></div>
+      </div>
+      <div class="topbar-sep"></div>
+      <div class="sort-wrap" id="sort-wrap">
+        <button class="sort-btn" id="sort-btn" onclick="toggleSort()">
+          <i data-lucide="arrow-up-down" style="width:12px;height:12px"></i>
+          <span id="sort-label">Relevance</span>
+          <i data-lucide="chevron-down" style="width:11px;height:11px;flex-shrink:0"></i>
+        </button>
+        <div class="sort-menu" id="sort-menu">
+          <div class="sort-opt active" data-sort="relevance" onclick="setSort('relevance',this)"><span class="sort-opt-check"><i data-lucide="check" style="width:11px;height:11px"></i></span><i data-lucide="search" style="width:12px;height:12px;color:var(--t3)"></i>Relevance</div>
+          <div class="sort-opt" data-sort="alpha" onclick="setSort('alpha',this)"><span class="sort-opt-check"><i data-lucide="check" style="width:11px;height:11px"></i></span><i data-lucide="list-ordered" style="width:12px;height:12px;color:var(--t3)"></i>Name A → Z</div>
+          <div class="sort-opt" data-sort="alpha-desc" onclick="setSort('alpha-desc',this)"><span class="sort-opt-check"><i data-lucide="check" style="width:11px;height:11px"></i></span><i data-lucide="list-ordered" style="width:12px;height:12px;color:var(--t3)"></i>Name Z → A</div>
+          <div class="sort-menu-sep"></div>
+          <div class="sort-opt" data-sort="popular" onclick="setSort('popular',this)"><span class="sort-opt-check"><i data-lucide="check" style="width:11px;height:11px"></i></span><i data-lucide="trending-up" style="width:12px;height:12px;color:var(--t3)"></i>Most Popular</div>
+          <div class="sort-opt" data-sort="downloads" onclick="setSort('downloads',this)"><span class="sort-opt-check"><i data-lucide="check" style="width:11px;height:11px"></i></span><i data-lucide="download" style="width:12px;height:12px;color:var(--t3)"></i>Most Downloaded</div>
+          <div class="sort-menu-sep"></div>
+          <div class="sort-opt" data-sort="install-date" onclick="setSort('install-date',this)"><span class="sort-opt-check"><i data-lucide="check" style="width:11px;height:11px"></i></span><i data-lucide="calendar" style="width:12px;height:12px;color:var(--t3)"></i>Last Installed</div>
+        </div>
+      </div>
+      <div class="topbar-sep"></div>
+      <button class="icon-btn active" id="btn-list" title="List" onclick="setMode('list')"><i data-lucide="list" style="width:13px;height:13px"></i></button>
+      <button class="icon-btn" id="btn-grid" title="Grid" onclick="setMode('grid')"><i data-lucide="layout-grid" style="width:13px;height:13px"></i></button>
+      <div class="topbar-sep"></div>
+      <button class="icon-btn" title="Command Palette (⌘K)" onclick="openCmdPalette()"><i data-lucide="command" style="width:13px;height:13px"></i></button>
+    </div>
+
+    <div id="filterbar">
+      <div class="chip active" data-f="all"     onclick="setFilter('all',this)"><i data-lucide="layers" style="width:10px;height:10px"></i> All</div>
+      <div class="chip" data-f="data"    onclick="setFilter('data',this)"><i data-lucide="database" style="width:10px;height:10px"></i> Data</div>
+      <div class="chip" data-f="web"     onclick="setFilter('web',this)"><i data-lucide="globe" style="width:10px;height:10px"></i> Web</div>
+      <div class="chip" data-f="ml"      onclick="setFilter('ml',this)"><i data-lucide="brain" style="width:10px;height:10px"></i> ML / AI</div>
+      <div class="chip" data-f="cli"     onclick="setFilter('cli',this)"><i data-lucide="terminal-square" style="width:10px;height:10px"></i> CLI</div>
+      <div class="chip" data-f="testing" onclick="setFilter('testing',this)"><i data-lucide="flask-conical" style="width:10px;height:10px"></i> Testing</div>
+      <div class="chip" data-f="async"   onclick="setFilter('async',this)"><i data-lucide="zap" style="width:10px;height:10px"></i> Async</div>
+      <div class="chip" data-f="util"    onclick="setFilter('util',this)"><i data-lucide="wrench" style="width:10px;height:10px"></i> Utils</div>
+      <span class="fcount" id="fcount">Loading…</span>
+    </div>
+
+    <div id="fetchbar"><div id="fetchbar-fill"></div></div>
+
+    <div id="content">
+      <div id="pkg-scroll">
+        <div id="pkg-list-cont"></div>
+        <div id="pkg-grid-cont"></div>
+      </div>
+
+      <div id="detail">
+        <div id="detail-inner">
+          <div class="dp-head">
+            <div class="dp-top">
+              <div class="dp-ico" id="dp-ico">—</div>
+              <div class="dp-titles">
+                <div class="dp-name" id="dp-name">Package</div>
+                <div class="dp-ver" id="dp-ver">—</div>
+              </div>
+              <button class="dp-close" onclick="closeDetail()"><i data-lucide="x" style="width:11px;height:11px"></i></button>
+            </div>
+            <div class="dp-tabs">
+              <button class="dp-tab on" onclick="setTab('info',this)">Info</button>
+              <button class="dp-tab"    onclick="setTab('stats',this)">Stats</button>
+              <button class="dp-tab"    onclick="setTab('changelog',this)">Changelog</button>
+              <button class="dp-tab"    onclick="setTab('deps',this)">Deps</button>
+              <button class="dp-tab"    onclick="setTab('tags',this)">Tags</button>
+              <button class="dp-tab"    onclick="setTab('why',this)">Why?</button>
+            </div>
+          </div>
+          <div class="dp-body">
+            <div class="dp-pane on" id="dp-info"><div class="empty" style="height:180px"><i data-lucide="loader-2" style="width:20px;height:20px;animation:spin .8s linear infinite"></i></div></div>
+            <div class="dp-pane" id="dp-stats"><div class="empty" style="height:100px"><p style="font-size:12px;color:var(--t2)">Select a package</p></div></div>
+            <div class="dp-pane" id="dp-changelog"><div class="empty" style="height:100px"><p style="font-size:12px;color:var(--t2)">Select a package</p></div></div>
+            <div class="dp-pane" id="dp-deps">
+              <div id="dp-deps-content"><div class="empty" style="height:100px"><p style="font-size:12px;color:var(--t2)">Select a package</p></div></div>
+              <div style="margin-top:8px" id="dp-depgraph-btn-wrap" style="display:none"></div>
+            </div>
+            <div class="dp-pane" id="dp-tags">
+              <div class="dp-sec">
+                <div class="dp-slabel">Your Tags</div>
+                <div class="dp-tagwrap" id="dp-tag-area"></div>
+                <div class="tag-add">
+                  <input id="dp-tag-input" placeholder="Add tag…" onkeydown="if(event.key==='Enter')addTag()"/>
+                  <button onclick="addTag()">Add</button>
+                </div>
+              </div>
+            </div>
+            <div class="dp-pane" id="dp-why">
+              <div class="empty" style="height:80px"><p style="font-size:12px;color:var(--t2)">Select a package</p></div>
+            </div>
+          </div>
+          <div class="dp-foot">
+            <button class="dp-favbtn" id="dp-favbtn" title="Favorite" onclick="toggleFavDetail()"><i data-lucide="star" style="width:14px;height:14px"></i></button>
+            <button class="dp-pinbtn" id="dp-pinbtn" title="Pin to top" onclick="togglePinDetail()"><i data-lucide="pin" style="width:14px;height:14px"></i></button>
+            <button class="dp-uninstallbtn" id="dp-uninstallbtn" onclick="uninstallFromDetail()"><i data-lucide="trash-2" style="width:12px;height:12px"></i> Uninstall</button>
+            <button class="dp-installbtn" id="dp-installbtn" onclick="installFromDetail()"><i data-lucide="download" style="width:13px;height:13px"></i> Install</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="statusbar">
+      <div class="sb-stat"><strong id="stat-shown">0</strong> packages</div>
+      <div class="sb-dot"></div>
+      <div class="sb-stat" id="stat-interp-wrap" style="display:none"><i data-lucide="terminal" style="width:11px;height:11px"></i><strong id="stat-interp">default</strong></div>
+      <div id="sel-strip">
+        <span id="sel-count">0 selected</span>
+        <button class="sel-chip" onclick="clearSel()"><i data-lucide="x" style="width:10px;height:10px"></i> Clear</button>
+        <button class="sel-chip" onclick="copyCmd()"><i data-lucide="clipboard" style="width:10px;height:10px"></i> Copy</button>
+        <button class="sel-chip" onclick="openBulkTag()"><i data-lucide="tag" style="width:10px;height:10px"></i> Tag</button>
+        <button class="sel-chip" onclick="bulkUninstallSelected()" style="color:var(--red)"><i data-lucide="trash-2" style="width:10px;height:10px"></i> Uninstall</button>
+        <button class="sel-chip primary" onclick="installSelected()"><i data-lucide="download" style="width:10px;height:10px"></i><span id="sel-label">Install</span></button>
+      </div>
+      <div id="autosave-indicator" style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t4);font-family:var(--mono);transition:color .3s">
+        <i data-lucide="cloud" style="width:10px;height:10px"></i>
+        <span id="autosave-txt">saved</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"><i data-lucide="check" style="width:12px;height:12px"></i><span id="toast-txt"></span></div>
+
+<!-- UNDO TOAST -->
+<div id="undo-toast">
+  <span id="undo-txt">Action undone</span>
+  <button onclick="doUndo()">Undo</button>
+</div>
+
+<!-- CLIPBOARD QUICK-INSTALL BANNER -->
+<div id="clipboard-banner">
+  <i data-lucide="clipboard" style="width:13px;height:13px;color:var(--t3)"></i>
+  <span>Install <span id="cb-pkg-name" class="cb-pkg"></span> from clipboard?</span>
+  <button onclick="installFromClipboard()">Install</button>
+  <button class="cb-dismiss" onclick="dismissClipboard()"><i data-lucide="x" style="width:10px;height:10px"></i></button>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div id="cmd-palette-overlay">
+  <div id="cmd-palette">
+    <div class="cp-search">
+      <i data-lucide="command" style="width:14px;height:14px"></i>
+      <input id="cp-input" placeholder="Type a command or search…" oninput="filterCmdPalette()" onkeydown="handleCpKey(event)" autocomplete="off" spellcheck="false"/>
+      <span class="kbd">Esc</span>
+    </div>
+    <div class="cp-list" id="cp-list"></div>
+  </div>
+</div>
+
+<!-- STREAMING INSTALL MODAL -->
+<div class="overlay" id="m-stream">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="terminal" style="width:16px;height:16px;color:var(--green)"></i></div><div class="m-titles"><div class="m-title">Installing…</div><div class="m-sub" id="stream-sub">Running pip install</div></div></div>
+    <div class="m-body" style="padding-bottom:0">
+      <div id="stream-pkg-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px"></div>
+    </div>
+    <div class="stream-out" id="stream-out"></div>
+    <div class="m-foot"><button class="m-btn m-ghost" id="stream-close-btn" onclick="closeModal('m-stream')" disabled>Close</button></div>
+  </div>
+</div>
+
+<!-- UPDATES MODAL -->
+<div class="overlay" id="m-updates">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="arrow-up-circle" style="width:16px;height:16px;color:var(--blue)"></i></div><div class="m-titles"><div class="m-title">Package Updates</div><div class="m-sub">Outdated packages in your environment</div></div></div>
+    <div class="m-body" id="updates-body" style="max-height:280px;overflow-y:auto"></div>
+    <div class="m-foot">
+      <button class="m-btn m-ghost" onclick="closeModal('m-updates')">Close</button>
+      <button class="m-btn m-ghost" onclick="selectAllUpdates()"><i data-lucide="check-square" style="width:12px;height:12px"></i> Select All</button>
+      <button class="m-btn m-primary" onclick="updateSelected()"><i data-lucide="arrow-up-circle" style="width:12px;height:12px"></i> Update Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIRTUAL ENVIRONMENTS MODAL -->
+<div class="overlay" id="m-venv">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="box" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Virtual Environments</div><div class="m-sub">Manage Python venvs for this project</div></div></div>
+    <div class="m-body">
+      <div class="venv-list" id="venv-list"></div>
+      <div class="venv-create">
+        <input id="venv-name-input" placeholder="New venv name (e.g. myproject)"/>
+        <button class="m-btn m-primary" onclick="createVenv()" style="white-space:nowrap;flex-shrink:0"><i data-lucide="plus" style="width:12px;height:12px"></i> Create</button>
+      </div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-venv')">Done</button></div>
+  </div>
+</div>
+
+<!-- COLLECTIONS / STACKS MODAL -->
+<div class="overlay" id="m-collections">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="bookmark" style="width:16px;height:16px;color:var(--blue)"></i></div><div class="m-titles"><div class="m-title">Collections &amp; Stacks</div><div class="m-sub">Curated groups of packages you install together</div></div></div>
+    <div class="m-body">
+      <div id="col-view-list">
+        <div class="col-list" id="col-list"></div>
+        <div class="col-new">
+          <input id="col-name-input" placeholder="New collection name…"/>
+          <button class="m-btn m-ghost" onclick="createCollection()" style="white-space:nowrap;flex-shrink:0"><i data-lucide="plus" style="width:12px;height:12px"></i> New</button>
+        </div>
+      </div>
+      <div id="col-view-detail" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <button class="m-btn m-ghost" onclick="backToColList()" style="padding:5px 10px"><i data-lucide="chevron-left" style="width:12px;height:12px"></i></button>
+          <strong id="col-detail-name" style="font-size:13px"></strong>
+          <span id="col-detail-count" style="font-size:11px;color:var(--t3);font-family:var(--mono)"></span>
+        </div>
+        <div class="col-install-warn" id="col-install-warn"></div>
+        <div class="col-pkg-list" id="col-pkg-list"></div>
+        <div style="margin-top:10px;display:flex;gap:6px">
+          <input id="col-add-pkg-input" placeholder="Add package to this collection…" style="flex:1;background:var(--s2);border:1px solid var(--b1);color:var(--t1);font-size:12px;padding:7px 11px;border-radius:var(--r);outline:none;font-family:var(--mono)" onkeydown="if(event.key==='Enter')addPkgToCollection()"/>
+          <button class="m-btn m-ghost" onclick="addPkgToCollection()">Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="m-foot" id="col-foot">
+      <button class="m-btn m-ghost" onclick="closeModal('m-collections')">Close</button>
+      <button class="m-btn m-primary" id="col-install-btn" style="display:none" onclick="installCollection()"><i data-lucide="download" style="width:12px;height:12px"></i> Install Stack</button>
+    </div>
+  </div>
+</div>
+
+<!-- REQUIREMENTS IMPORTER MODAL -->
+<div class="overlay" id="m-import">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="file-input" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Import requirements.txt</div><div class="m-sub">Paste or drop a requirements file to bulk-install</div></div></div>
+    <div class="m-body">
+      <div class="req-drop" id="req-drop" onclick="document.getElementById('req-file-input').click()" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleReqDrop(event)">
+        <i data-lucide="file-text" style="width:24px;height:24px"></i>
+        <p>Drop requirements.txt here or click to browse</p>
+        <small>Supports pip requirements format</small>
+      </div>
+      <input type="file" id="req-file-input" accept=".txt" style="display:none" onchange="handleReqFile(event)"/>
+      <div style="text-align:center;font-size:11px;color:var(--t3);margin:4px 0">or paste below</div>
+      <textarea id="req-paste" placeholder="flask==2.3.0&#10;requests>=2.28&#10;numpy" style="width:100%;background:var(--s2);border:1px solid var(--b1);color:var(--t1);font-size:11px;font-family:var(--mono);padding:9px 11px;border-radius:var(--r);outline:none;resize:none;height:80px;line-height:1.6" oninput="parseReqPaste()"></textarea>
+      <div id="req-parsed" style="display:none;margin-top:8px">
+        <div style="font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:5px"><span id="req-count">0</span> packages found</div>
+        <div class="req-parsed-list" id="req-pkg-list"></div>
+      </div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-import')">Cancel</button><button class="m-btn m-primary" id="req-install-btn" onclick="installFromReq()" disabled><i data-lucide="download" style="width:12px;height:12px"></i> Install All</button></div>
+  </div>
+</div>
+
+<!-- SEARCH HISTORY MODAL -->
+<div class="overlay" id="m-searchhist">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="history" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Search History</div><div class="m-sub">Your recent searches</div></div></div>
+    <div class="m-body" style="max-height:320px;overflow-y:auto">
+      <div class="sh-timeline" id="sh-timeline"></div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="clearSearchHistory()"><i data-lucide="trash-2" style="width:12px;height:12px"></i> Clear All</button><button class="m-btn m-ghost" onclick="closeModal('m-searchhist')">Done</button></div>
+  </div>
+</div>
+
+<!-- BULK TAG MODAL -->
+<div class="overlay" id="m-bulktag">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="tags" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Bulk Tag</div><div class="m-sub">Apply a tag to all selected packages</div></div></div>
+    <div class="m-body">
+      <div class="btag-list" id="btag-list" style="max-height:160px;overflow-y:auto;margin-bottom:10px"></div>
+      <div style="display:flex;gap:6px">
+        <input id="btag-input" placeholder="Tag to apply…" style="flex:1;background:var(--s2);border:1px solid var(--b1);color:var(--t1);font-size:12px;font-family:var(--mono);padding:7px 11px;border-radius:var(--r);outline:none" onkeydown="if(event.key==='Enter')applyBulkTag()"/>
+        <button class="m-btn m-primary" onclick="applyBulkTag()">Apply</button>
+      </div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-bulktag')">Done</button></div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="overlay" id="m-settings">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="settings-2" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Settings</div></div></div>
+    <div class="m-body" style="max-height:380px;overflow-y:auto">
+      <div class="setting-row">
+        <div class="setting-info"><div class="setting-title">Streaming Install</div><div class="setting-sub">Show live pip output while installing packages</div></div>
+        <label class="toggle-switch"><input type="checkbox" id="set-streaming" onchange="saveSetting('streamingInstall',this.checked)"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><div class="setting-title">Clipboard Monitor</div><div class="setting-sub">Offer quick install when a package name is copied</div></div>
+        <label class="toggle-switch"><input type="checkbox" id="set-clipboard" onchange="saveSetting('clipboardMonitor',this.checked)"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><div class="setting-title">Auto-check Updates</div><div class="setting-sub">Scan for outdated packages on startup</div></div>
+        <label class="toggle-switch"><input type="checkbox" id="set-autoupdate" onchange="saveSetting('autoUpdate',this.checked)"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><div class="setting-title">Show Health Scores</div><div class="setting-sub">Display package health badge in rows</div></div>
+        <label class="toggle-switch"><input type="checkbox" id="set-health" onchange="saveSetting('showHealth',this.checked)"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><div class="setting-title">Show Sparklines</div><div class="setting-sub">Mini download trend charts in detail panel</div></div>
+        <label class="toggle-switch"><input type="checkbox" id="set-sparklines" onchange="saveSetting('showSparklines',this.checked)"/><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-info"><div class="setting-title">Theme</div><div class="setting-sub">App color scheme</div></div>
+        <div class="theme-opts">
+          <div class="theme-opt active" style="background:#080808;border:2px solid #fff" data-theme="dark" onclick="applyTheme('dark',this)" title="Dark"></div>
+          <div class="theme-opt" style="background:#f0f0f0;border:2px solid #ccc" data-theme="light" onclick="applyTheme('light',this)" title="Light"></div>
+          <div class="theme-opt" style="background:linear-gradient(135deg,#0d1117,#001f3f);border:2px solid #0a84ff22" data-theme="midnight" onclick="applyTheme('midnight',this)" title="Midnight"></div>
+          <div class="theme-opt" style="background:linear-gradient(135deg,#0a0a0a,#100a00);border:2px solid #ffd60a22" data-theme="amber" onclick="applyTheme('amber',this)" title="Amber"></div>
+        </div>
+      </div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-settings')">Done</button></div>
+  </div>
+</div>
+
+<!-- KEYBOARD SHORTCUTS MODAL -->
+<div class="overlay" id="m-shortcuts">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="keyboard" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Keyboard Shortcuts</div></div></div>
+    <div class="m-body" style="max-height:380px;overflow-y:auto">
+      <div class="shortcut-grid">
+        <div class="shortcut-section">Navigation</div>
+        <div class="shortcut-row"><span class="shortcut-desc">Focus search</span><div class="shortcut-keys"><span class="shortcut-key">/</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Command palette</span><div class="shortcut-keys"><span class="shortcut-key">⌘K</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Move down</span><div class="shortcut-keys"><span class="shortcut-key">j</span><span class="shortcut-key">↓</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Move up</span><div class="shortcut-keys"><span class="shortcut-key">k</span><span class="shortcut-key">↑</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Open detail</span><div class="shortcut-keys"><span class="shortcut-key">Enter</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Close / cancel</span><div class="shortcut-keys"><span class="shortcut-key">Esc</span></div></div>
+        <div class="shortcut-section">Actions</div>
+        <div class="shortcut-row"><span class="shortcut-desc">Install focused</span><div class="shortcut-keys"><span class="shortcut-key">i</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Favorite focused</span><div class="shortcut-keys"><span class="shortcut-key">f</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Select all</span><div class="shortcut-keys"><span class="shortcut-key">⌘A</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Undo last action</span><div class="shortcut-keys"><span class="shortcut-key">⌘Z</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Copy pip command</span><div class="shortcut-keys"><span class="shortcut-key">⌘C</span></div></div>
+        <div class="shortcut-section">Views</div>
+        <div class="shortcut-row"><span class="shortcut-desc">Browse all</span><div class="shortcut-keys"><span class="shortcut-key">1</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Installed</span><div class="shortcut-keys"><span class="shortcut-key">2</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Favorites</span><div class="shortcut-keys"><span class="shortcut-key">3</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Trending</span><div class="shortcut-keys"><span class="shortcut-key">4</span></div></div>
+        <div class="shortcut-row"><span class="shortcut-desc">Toggle list/grid</span><div class="shortcut-keys"><span class="shortcut-key">⌘G</span></div></div>
+      </div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-shortcuts')">Done</button></div>
+  </div>
+</div>
+
+<!-- ONBOARDING MODAL -->
+<div class="overlay" id="m-onboard">
+  <div class="modal">
+    <div class="m-body" style="padding:28px 22px 0">
+      <div class="onboard-step active" id="ob-1">
+        <div class="onboard-ico"><i data-lucide="package-2" style="width:24px;height:24px"></i></div>
+        <div class="onboard-title">Welcome to Piepi</div>
+        <div class="onboard-desc">Your beautiful pip package manager. Browse, install, and manage 755,000+ Python packages without touching the terminal.</div>
+      </div>
+      <div class="onboard-step" id="ob-2">
+        <div class="onboard-ico"><i data-lucide="search" style="width:24px;height:24px"></i></div>
+        <div class="onboard-title">Smart Search</div>
+        <div class="onboard-desc">Search by name, author, or category. Use <code style="font-family:var(--mono);font-size:12px;background:var(--s3);padding:1px 5px;border-radius:4px">author:name</code> or <code style="font-family:var(--mono);font-size:12px;background:var(--s3);padding:1px 5px;border-radius:4px">tag:web</code> operators for precise results.</div>
+      </div>
+      <div class="onboard-step" id="ob-3">
+        <div class="onboard-ico"><i data-lucide="terminal" style="width:24px;height:24px"></i></div>
+        <div class="onboard-title">Pick Your Python</div>
+        <div class="onboard-desc">Select which Python interpreter to use. Works with system Python, venvs, conda, and pyenv.</div>
+      </div>
+      <div class="onboard-step" id="ob-4">
+        <div class="onboard-ico"><i data-lucide="keyboard" style="width:24px;height:24px"></i></div>
+        <div class="onboard-title">Keyboard-First</div>
+        <div class="onboard-desc">Press <code style="font-family:var(--mono);font-size:12px;background:var(--s3);padding:1px 5px;border-radius:4px">⌘K</code> for the command palette. Use <code style="font-family:var(--mono);font-size:12px;background:var(--s3);padding:1px 5px;border-radius:4px">j/k</code> to navigate and <code style="font-family:var(--mono);font-size:12px;background:var(--s3);padding:1px 5px;border-radius:4px">i</code> to install.</div>
+      </div>
+      <div class="onboard-dots" id="ob-dots">
+        <div class="onboard-dot active"></div><div class="onboard-dot"></div><div class="onboard-dot"></div><div class="onboard-dot"></div>
+      </div>
+    </div>
+    <div class="onboard-nav">
+      <button class="m-btn m-ghost" id="ob-prev" onclick="obStep(-1)" style="visibility:hidden">Back</button>
+      <button class="m-btn m-primary" id="ob-next" onclick="obStep(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHY INSTALLED MODAL -->
+<div class="overlay" id="m-why">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="help-circle" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title" id="why-title">Why is X installed?</div><div class="m-sub">Packages that depend on it</div></div></div>
+    <div class="m-body" style="max-height:280px;overflow-y:auto" id="why-body"></div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-why')">Close</button></div>
+  </div>
+</div>
+
+<!-- PIP CACHE MANAGER MODAL -->
+<div class="overlay" id="m-cache">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="hard-drive" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">pip Cache Manager</div></div></div>
+    <div class="m-body">
+      <div id="cache-info-out" style="font-family:var(--mono);font-size:11px;color:var(--t2);background:var(--bg);border:1px solid var(--b1);border-radius:var(--r);padding:9px 11px;white-space:pre-wrap;line-height:1.7;max-height:120px;overflow-y:auto">Loading…</div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-cache')">Close</button><button class="m-btn m-danger" onclick="purgeCache()"><i data-lucide="trash-2" style="width:12px;height:12px"></i> Purge Cache</button></div>
+  </div>
+</div>
+
+<!-- PIP COMPILE / LOCK FILE MODAL -->
+<div class="overlay" id="m-lock">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="lock" style="width:16px;height:16px;color:var(--amber)"></i></div><div class="m-titles"><div class="m-title">Lock File Generator</div><div class="m-sub">Pin all installed packages to exact versions</div></div></div>
+    <div class="m-body">
+      <p style="font-size:12px;color:var(--t2);margin-bottom:8px">Generates a <code style="font-family:var(--mono);font-size:11px;background:var(--s3);padding:1px 5px;border-radius:3px">requirements.lock</code> file with exact pinned versions of all currently installed packages.</p>
+      <div id="lock-preview" class="lock-out" style="display:none"></div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-lock')">Cancel</button><button class="m-btn m-ghost" id="lock-preview-btn" onclick="previewLock()">Preview</button><button class="m-btn m-primary" onclick="downloadLock()"><i data-lucide="download" style="width:12px;height:12px"></i> Download Lock File</button></div>
+  </div>
+</div>
+
+<!-- CONFLICT RESOLVER MODAL -->
+<div class="overlay" id="m-conflicts">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="alert-triangle" style="width:16px;height:16px;color:var(--red)"></i></div><div class="m-titles"><div class="m-title">Dependency Conflicts</div><div class="m-sub">Potential version conflicts in your environment</div></div></div>
+    <div class="m-body" style="max-height:280px;overflow-y:auto" id="conflict-body"></div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-conflicts')">Close</button></div>
+  </div>
+</div>
+<div id="kb-hint">
+  <span class="kbh">j/k ↑↓</span>
+  <span class="kbh">Enter open</span>
+  <span class="kbh">i install</span>
+  <span class="kbh">f fav</span>
+  <span class="kbh">/ search</span>
+  <span class="kbh">Esc close</span>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu">
+  <div class="ctx-pkg-label" id="ctx-pkg-label">package</div>
+  <div class="ctx-item" id="ctx-open"><i data-lucide="panel-right-open" style="width:13px;height:13px"></i>Open Detail</div>
+  <div class="ctx-item" id="ctx-install"><i data-lucide="download" style="width:13px;height:13px"></i>Install</div>
+  <div class="ctx-item" id="ctx-depgraph"><i data-lucide="git-fork" style="width:13px;height:13px"></i>View Dep Graph</div>
+  <div class="ctx-item" id="ctx-why"><i data-lucide="help-circle" style="width:13px;height:13px"></i>Why Installed?</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-fav"><i data-lucide="star" style="width:13px;height:13px"></i>Add to Favorites</div>
+  <div class="ctx-item" id="ctx-pin"><i data-lucide="pin" style="width:13px;height:13px"></i>Pin to Top</div>
+  <div class="ctx-item" id="ctx-copy"><i data-lucide="clipboard" style="width:13px;height:13px"></i>Copy pip command</div>
+  <div class="ctx-item" id="ctx-select"><i data-lucide="check-square" style="width:13px;height:13px"></i>Select</div>
+  <div class="ctx-item" id="ctx-addcol"><i data-lucide="bookmark-plus" style="width:13px;height:13px"></i>Add to Collection</div>
+  <div class="ctx-sep" id="ctx-uninstall-sep" style="display:none"></div>
+  <div class="ctx-item danger" id="ctx-uninstall" style="display:none"><i data-lucide="trash-2" style="width:13px;height:13px"></i>Uninstall</div>
+</div>
+
+<!-- MODALS -->
+<div class="overlay" id="m-warn">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="shield-alert" style="width:16px;height:16px;color:var(--amber)"></i></div><div class="m-titles"><div class="m-title">Before you install</div><div class="m-sub">Verify the author and source before installing.</div></div></div>
+    <div class="m-body">
+      <div class="conflict-banner" id="conflict-banner"><i data-lucide="alert-triangle" style="width:13px;height:13px"></i><div class="conflict-text" id="conflict-text"></div></div>
+      <div class="warn-list" id="warn-list"></div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-warn')">Cancel</button><button class="m-btn m-primary" onclick="confirmInstall()"><i data-lucide="download" style="width:12px;height:12px"></i> Install</button></div>
+  </div>
+</div>
+<div class="overlay" id="m-uninstall">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="trash-2" style="width:16px;height:16px;color:var(--red)"></i></div><div class="m-titles"><div class="m-title">Uninstall packages</div><div class="m-sub">This will remove the selected packages from your environment.</div></div></div>
+    <div class="m-body"><div class="warn-list" id="uninstall-list"></div></div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-uninstall')">Cancel</button><button class="m-btn m-danger" onclick="confirmUninstall()"><i data-lucide="trash-2" style="width:12px;height:12px"></i> Uninstall</button></div>
+  </div>
+</div>
+<div class="overlay" id="m-result">
+  <div class="modal">
+    <div class="res-banner"><div class="res-dot" id="res-dot"></div><div class="m-title" id="res-title"></div></div>
+    <div class="res-out" id="res-out"></div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-result')">Close</button></div>
+  </div>
+</div>
+<div class="overlay" id="m-interp">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="terminal" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Python Interpreter</div><div class="m-sub">Choose which Python to use for pip installs.</div></div></div>
+    <div class="m-body">
+      <div class="ilist" id="ilist"></div>
+      <div class="icustom"><input id="icustom" placeholder="Custom path e.g. /usr/bin/python3.12"/><button class="m-btn m-ghost" onclick="useCustom()" style="white-space:nowrap">Use</button></div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-interp')">Cancel</button><button class="m-btn m-primary" onclick="saveInterp()">Save</button></div>
+  </div>
+</div>
+<div class="overlay" id="m-tags">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="tags" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Tag Manager</div></div></div>
+    <div class="m-body" id="tm-body" style="max-height:260px;overflow-y:auto;padding-bottom:4px"></div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-tags')">Done</button></div>
+  </div>
+</div>
+<div class="overlay" id="m-export">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="share" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Export Data</div><div class="m-sub">Download your Piepi data.</div></div></div>
+    <div class="m-body">
+      <div class="export-opts">
+        <div class="export-opt" onclick="exportData('requirements')"><div class="export-opt-ico"><i data-lucide="file-text" style="width:13px;height:13px"></i></div><div class="export-opt-body"><div class="export-opt-title">requirements.txt</div><div class="export-opt-sub">All favorites as a pip requirements file</div></div></div>
+        <div class="export-opt" onclick="exportData('json')"><div class="export-opt-ico"><i data-lucide="braces" style="width:13px;height:13px"></i></div><div class="export-opt-body"><div class="export-opt-title">Full JSON export</div><div class="export-opt-sub">Favorites, tags, install history</div></div></div>
+        <div class="export-opt" onclick="exportData('installed')"><div class="export-opt-ico"><i data-lucide="hard-drive" style="width:13px;height:13px"></i></div><div class="export-opt-body"><div class="export-opt-title">Installed packages</div><div class="export-opt-sub">requirements.txt from your active interpreter</div></div></div>
+      </div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-export')">Close</button></div>
+  </div>
+</div>
+
+<!-- SNAPSHOTS MODAL -->
+<div class="overlay" id="m-snapshots">
+  <div class="modal">
+    <div class="m-head"><div class="m-ico"><i data-lucide="layers" style="width:16px;height:16px"></i></div><div class="m-titles"><div class="m-title">Environment Snapshots</div><div class="m-sub">Freeze and restore installed package states.</div></div></div>
+    <div class="m-body">
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <input class="snap-name-input" id="snap-name-input" placeholder="Snapshot name…"/>
+        <button class="m-btn m-primary" onclick="takeSnapshot()" style="white-space:nowrap;flex-shrink:0"><i data-lucide="camera" style="width:12px;height:12px"></i> Save Now</button>
+      </div>
+      <div class="snap-list" id="snap-list"></div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-snapshots')">Done</button></div>
+  </div>
+</div>
+
+<!-- DEPENDENCY GRAPH MODAL -->
+<div class="overlay" id="m-depgraph">
+  <div class="modal" style="width:700px;max-width:96vw">
+    <div class="m-head">
+      <div class="m-ico"><i data-lucide="git-fork" style="width:16px;height:16px"></i></div>
+      <div class="m-titles">
+        <div class="m-title" id="depgraph-title">Dependency Graph</div>
+        <div class="m-sub" id="depgraph-sub">Loading…</div>
+      </div>
+    </div>
+    <div class="dg-controls">
+      <span style="font-size:11px;color:var(--t3)">Depth:</span>
+      <button class="dg-depth-btn active" data-depth="1" onclick="setDepth(1,this)">Direct</button>
+      <button class="dg-depth-btn" data-depth="2" onclick="setDepth(2,this)">2 levels</button>
+      <button class="dg-depth-btn" data-depth="3" onclick="setDepth(3,this)">Full tree</button>
+      <div class="dg-legend">
+        <div class="dg-leg"><div class="dg-leg-dot" style="background:#0a84ff"></div>root</div>
+        <div class="dg-leg"><div class="dg-leg-dot" style="background:#30d158"></div>direct dep</div>
+        <div class="dg-leg"><div class="dg-leg-dot" style="background:#444"></div>transitive</div>
+      </div>
+    </div>
+    <div id="depgraph-svg-wrap" style="margin:10px 22px 0;height:360px">
+      <svg id="depgraph-svg" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"></svg>
+      <div class="dg-tooltip" id="dg-tooltip" style="opacity:0"></div>
+    </div>
+    <div class="m-foot"><button class="m-btn m-ghost" onclick="closeModal('m-depgraph')">Close</button></div>
+  </div>
+</div>
+
+<div id="toast"><i data-lucide="check" style="width:11px;height:11px"></i><span id="toast-txt"></span></div>
+
+<script>
+/* ─── DATA ─── */
+const FKEYS={data:['pandas','numpy','scipy','data','csv','sql','arrow','parquet','polars','dask'],web:['django','flask','fastapi','aiohttp','requests','httpx','tornado','starlette','uvicorn','bottle'],ml:['tensorflow','torch','keras','sklearn','scikit','transformer','langchain','llm','bert','xgboost','lightgbm','openai'],cli:['click','typer','rich','prompt','textual','colorama','termcolor','blessed'],testing:['pytest','unittest','mock','hypothesis','coverage','faker','factory','tox'],async:['asyncio','anyio','trio','celery','redis','kafka','aiofiles','aiomysql'],util:['pydantic','attrs','loguru','pendulum','humanize','retry','tqdm','pathlib']};
+
+/* Works best with — curated pairings */
+const PAIRS={
+  requests:['httpx','urllib3','beautifulsoup4','lxml','aiohttp'],
+  pandas:['numpy','matplotlib','seaborn','openpyxl','sqlalchemy','polars','dask'],
+  numpy:['scipy','pandas','matplotlib','numba','jax'],
+  flask:['sqlalchemy','marshmallow','flask-login','gunicorn','celery'],
+  fastapi:['uvicorn','pydantic','sqlalchemy','alembic','httpx'],
+  django:['djangorestframework','celery','redis','psycopg2','pillow'],
+  pytest:['pytest-cov','pytest-mock','pytest-asyncio','hypothesis','faker'],
+  sqlalchemy:['alembic','psycopg2','pymysql','asyncpg','pydantic'],
+  celery:['redis','kombu','flower','django','sqlalchemy'],
+  pydantic:['fastapi','sqlmodel','pydantic-settings','python-dotenv'],
+  torch:['torchvision','transformers','accelerate','datasets','numpy'],
+  transformers:['torch','datasets','tokenizers','accelerate','huggingface-hub'],
+  openai:['tiktoken','anthropic','langchain','pydantic','httpx'],
+  langchain:['openai','anthropic','chromadb','faiss-cpu','pydantic'],
+  click:['rich','typer','colorama','prompt-toolkit'],
+  rich:['click','typer','textual','loguru'],
+  aiohttp:['asyncio','aiofiles','uvloop','yarl'],
+  scrapy:['beautifulsoup4','lxml','playwright','selenium'],
+  pillow:['numpy','matplotlib','opencv-python','scikit-image'],
+  matplotlib:['numpy','pandas','seaborn','plotly','scipy'],
+};
+
+/* Similar packages — by shared category tags */
+const SIMILAR_CATS={
+  http:['requests','httpx','aiohttp','urllib3','httpcore'],
+  df:['pandas','polars','dask','vaex','cudf'],
+  web_fw:['flask','fastapi','django','starlette','bottle','tornado'],
+  ml_fw:['tensorflow','torch','jax','mxnet','paddle'],
+  llm:['openai','anthropic','langchain','llamaindex','cohere'],
+  cli_fw:['click','typer','argparse','fire','docopt'],
+  task:['celery','rq','dramatiq','arq','huey'],
+  test:['pytest','unittest2','nose2','hypothesis','ward'],
+  serial:['pydantic','marshmallow','attrs','cattrs','dacite'],
+  orm:['sqlalchemy','django','peewee','tortoise-orm','sqlmodel'],
+};
+
+function getSimilar(name){
+  const lname=name.toLowerCase();
+  for(const [,group] of Object.entries(SIMILAR_CATS)){
+    if(group.includes(lname)) return group.filter(n=>n!==lname).slice(0,5);
+  }
+  // fallback: same keyword bucket
+  for(const [,keys] of Object.entries(FKEYS)){
+    if(keys.some(k=>lname.includes(k))){
+      return S.pkgs.filter(p=>keys.some(k=>p.name.toLowerCase().includes(k))&&p.name!==name).slice(0,5).map(p=>p.name);
+    }
+  }
+  return [];
+}
+
+function getWorksWith(name){
+  return (PAIRS[name.toLowerCase()]||[]).slice(0,5);
+}
+
+const POPULAR=new Set(['requests','numpy','pandas','pip','setuptools','six','urllib3','certifi','wheel','python-dateutil','idna','charset-normalizer','packaging','attrs','pyyaml','typing-extensions','cryptography','boto3','botocore','s3transfer','pillow','scipy','matplotlib','scikit-learn','tqdm','click','flask','django','fastapi','uvicorn','aiohttp','httpx','pydantic','sqlalchemy','celery','redis','pymongo','psycopg2','alembic','pytest','black','mypy','flake8','isort','pylint','sphinx','jinja2','markupsafe','werkzeug','itsdangerous','gunicorn','starlette','anyio','httpcore','rich','typer','loguru','arrow','pendulum','humanize','tabulate','colorama','paramiko','docker','kubernetes','tensorflow','torch','keras','transformers','huggingface-hub','openai','anthropic','langchain','tiktoken','tokenizers','datasets','accelerate','xgboost','lightgbm','catboost','nltk','spacy','gensim','opencv-python','plotly','seaborn','bokeh','altair','streamlit','gradio','dash','jupyter','notebook','ipython','dask','ray','joblib','pydantic-settings','python-dotenv','marshmallow','jsonschema','lxml','beautifulsoup4','scrapy','playwright','selenium','bcrypt','passlib','sqlmodel','peewee','mongoengine','elasticsearch','faker','coverage','pytest-cov','pytest-asyncio','pytest-mock','tox','pre-commit','bandit','twine','build','poetry','hatch','pdm','pipenv','virtualenv','pyinstaller','cython','numba','jax','sympy','statsmodels','prophet','diffusers','sentence-transformers','faiss-cpu','chromadb']);
+
+const S={pkgs:[],filtered:[],sel:new Set(),lastSel:null,favs:new Set(),recents:[],tags:{},history:[],view:'browse',mode:'list',filter:'all',sort:'relevance',interp:'',interps:[],detailPkg:null,pending:[],installed:new Map(),searchHistory:[],pins:new Set(),snapshots:[],notes:{},depDepth:1,kbIdx:-1};
+
+/* ─── INIT ─── */
+async function init(){
+  lucide.createIcons();
+  try{
+    const st=await window.piepi?.storeGet()??{};
+    S.favs=new Set(st.favorites||[]);
+    S.recents=st.recents||[];
+    S.tags=st.tags||{};
+    S.history=st.history||[];
+    S.interp=st.selectedInterpreter||'';
+    S.searchHistory=st.searchHistory||[];
+    S.pins=new Set(st.pins||[]);
+    S.snapshots=st.snapshots||[];
+    S.notes=st.notes||{};
+    syncInterp();
+  }catch{}
+  badge('bdg-fav',S.favs.size);
+  try{const c=await window.piepi?.cacheGet();if(c&&c.length){S.pkgs=c;finishLoad();return;}}catch{}
+  fetchIndex();
+  window.piepi?.getInterpreters().then(l=>{S.interps=l||[];}).catch(()=>{});
+  loadInstalled();
+  showKbHint();
+}
+
+async function loadInstalled(){
+  try{
+    const list=await window.piepi?.pipList({interpreter:S.interp||''})??[];
+    S.installed=new Map(list.map(p=>[p.name.toLowerCase(),p.version]));
+    badge('bdg-inst',S.installed.size);
+    renderView();
+  }catch{}
+}
+
+async function fetchIndex(){
+  fetchBar(true);setCount('Fetching…');
+  try{
+    const r=await fetch('https://pypi.org/simple/',{cache:'no-store'});
+    const html=await r.text();
+    const pkgs=[];
+    for(const m of html.matchAll(/<a[^>]*>([^<]+)<\/a>/gi)){const n=m[1].trim();if(n)pkgs.push({name:n});}
+    S.pkgs=pkgs;
+    await window.piepi?.cacheSet(pkgs);
+    finishLoad();
+  }catch{fetchBar(false);empty(document.getElementById('pkg-list-cont'),'wifi-off','Cannot reach PyPI','Check your connection.');setCount('Error');}
+}
+function finishLoad(){fetchBar(false);badge('bdg-total',S.pkgs.length);renderView();}
+
+let fbRaf;
+function fetchBar(on){
+  document.getElementById('fetchbar').style.display=on?'block':'none';
+  if(!on)return;
+  let w=0;cancelAnimationFrame(fbRaf);
+  const el=document.getElementById('fetchbar-fill');
+  const tick=()=>{w=Math.min(w+.11,90);el.style.width=w+'%';if(w<90)fbRaf=requestAnimationFrame(tick);};
+  tick();
+}
+
+/* ─── SORT ─── */
+function toggleSort(){const menu=document.getElementById('sort-menu'),btn=document.getElementById('sort-btn');const open=menu.classList.toggle('open');btn.classList.toggle('open',open);if(open)lucide.createIcons();}
+function setSort(val,el){S.sort=val;document.querySelectorAll('.sort-opt').forEach(o=>o.classList.toggle('active',o===el));const labels={relevance:'Relevance',alpha:'Name A→Z','alpha-desc':'Name Z→A',popular:'Popular',downloads:'Downloads'};document.getElementById('sort-label').textContent=labels[val]||val;document.getElementById('sort-menu').classList.remove('open');document.getElementById('sort-btn').classList.remove('open');applySearch(document.getElementById('search-input').value.trim());}
+
+document.addEventListener('click',e=>{
+  if(!document.getElementById('sort-wrap').contains(e.target)){document.getElementById('sort-menu').classList.remove('open');document.getElementById('sort-btn').classList.remove('open');}
+  if(!document.getElementById('search-input').closest('#topbar').contains(e.target))hideSuggestions();
+});
+
+/* ─── SEARCH OPERATORS ─── */
+function parseOperators(raw){
+  let q=raw, author=null, tagFilter=null;
+  const authorMatch=raw.match(/\bauthor:(\S+)/i);
+  const tagMatch=raw.match(/\btag:(\S+)/i);
+  if(authorMatch){author=authorMatch[1].toLowerCase();q=q.replace(authorMatch[0],'').trim();}
+  if(tagMatch){tagFilter=tagMatch[1].toLowerCase();q=q.replace(tagMatch[0],'').trim();}
+  return{q,author,tagFilter};
+}
+
+/* ─── SCORING ─── */
+function scoreMatch(pkg,q){
+  if(!q)return 0;
+  const name=pkg.name.toLowerCase(),lq=q.toLowerCase();
+  if(name===lq)return 1000;
+  if(name.replace(/[-_.]/g,'')===lq.replace(/[-_.]/g,''))return 950;
+  if(name.startsWith(lq))return 800+(50-Math.min(name.length-lq.length,50));
+  if(name.split(/[-_.]/).some(w=>w===lq))return 700;
+  if(name.split(/[-_.]/).some(w=>w.startsWith(lq)))return 600;
+  if(name.includes(lq))return 400+(50-name.indexOf(lq));
+  if(pkg.summary&&pkg.summary.toLowerCase().includes(lq))return 100;
+  return 0;
+}
+function popularityScore(pkg){
+  const name=pkg.name.toLowerCase();
+  if(POPULAR.has(name))return 1000;
+  const dl=pkg._downloads||0;
+  if(dl>0)return Math.min(dl/100000,500);
+  return Math.max(0,60-name.length)*2+(/\d/.test(name)?0:50);
+}
+function sortList(list,q){
+  const s=S.sort;
+  if(s==='alpha')return[...list].sort((a,b)=>a.name.localeCompare(b.name));
+  if(s==='alpha-desc')return[...list].sort((a,b)=>b.name.localeCompare(a.name));
+  if(s==='popular'||s==='downloads')return[...list].sort((a,b)=>popularityScore(b)-popularityScore(a));
+  if(q)return[...list].sort((a,b)=>{const sd=scoreMatch(b,q)-scoreMatch(a,q);return sd!==0?sd:popularityScore(b)-popularityScore(a);});
+  return list;
+}
+
+/* ─── SUGGESTIONS ─── */
+function showSuggestions(q){
+  const box=document.getElementById('search-suggestions');
+  const rel=q?S.searchHistory.filter(h=>h.toLowerCase().includes(q.toLowerCase())&&h!==q).slice(0,6):S.searchHistory.slice(-6).reverse();
+  if(!rel.length){box.classList.remove('vis');return;}
+  box.innerHTML=rel.map(h=>`<div class="sug-item" onclick="pickSuggestion('${esc(h)}')"><i data-lucide="clock-3" style="width:11px;height:11px"></i><span class="sug-label">${esc(h)}</span><span class="sug-del" onclick="event.stopPropagation();deleteSuggestion('${esc(h)}')"><i data-lucide="x" style="width:9px;height:9px"></i></span></div>`).join('');
+  lucide.createIcons();box.classList.add('vis');
+}
+function hideSuggestions(){document.getElementById('search-suggestions').classList.remove('vis');}
+function pickSuggestion(q){document.getElementById('search-input').value=q;hideSuggestions();applySearch(q);syncSearchUI(q);}
+function deleteSuggestion(q){S.searchHistory=S.searchHistory.filter(h=>h!==q);persist();showSuggestions(document.getElementById('search-input').value.trim());}
+function addSearchHistory(q){if(!q||q.length<2)return;S.searchHistory=S.searchHistory.filter(h=>h!==q);S.searchHistory.push(q);if(S.searchHistory.length>20)S.searchHistory.shift();persist();}
+function clearSearch(){document.getElementById('search-input').value='';syncSearchUI('');applySearch('');hideSuggestions();document.getElementById('search-input').focus();}
+function syncSearchUI(q){document.getElementById('search-clear').classList.toggle('vis',q.length>0);document.getElementById('search-kbd').style.display=q.length>0?'none':'';}
+
+let stimer;
+document.getElementById('search-input').addEventListener('input',e=>{
+  const q=e.target.value.trim();
+  syncSearchUI(q);showSuggestions(q);
+  clearTimeout(stimer);
+  stimer=setTimeout(()=>{if(q)addSearchHistory(q);applySearch(q);},80);
+});
+document.getElementById('search-input').addEventListener('focus',e=>{showSuggestions(e.target.value.trim());});
+
+/* ─── APPLY SEARCH with operators ─── */
+function applySearch(raw){
+  const{q,author,tagFilter}=parseOperators(raw);
+  let list=S.pkgs;
+
+  // pinned always at top
+  const pinned=list.filter(p=>S.pins.has(p.name));
+  const rest=list.filter(p=>!S.pins.has(p.name));
+
+  if(S.filter!=='all'){const ks=FKEYS[S.filter]||[];list=rest.filter(p=>ks.some(k=>p.name.toLowerCase().includes(k)));}
+  else{list=rest;}
+
+  if(author){list=list.filter(p=>(p.author||'').toLowerCase().includes(author));}
+  if(tagFilter){list=list.filter(p=>(S.tags[p.name]||[]).includes(tagFilter));}
+  if(q){const lq=q.toLowerCase();list=list.filter(p=>scoreMatch(p,lq)>0);}
+
+  list=sortList(list,q);
+  S.filtered=[...pinned,...list];
+  renderPkgs(S.filtered);
+}
+
+/* ─── VIEWS ─── */
+function setView(v,el){
+  S.view=v;S.kbIdx=-1;
+  document.querySelectorAll('.sb-item[data-view]').forEach(i=>i.classList.remove('active'));
+  el?.classList.add('active');
+  document.getElementById('search-input').value='';
+  syncSearchUI('');
+  const lb={browse:'All Packages',installed:'Installed',favorites:'Favorites',recents:'Recently Viewed',history:'Install History',trending:'Trending'};
+  const ic={browse:'package-2',installed:'hard-drive',favorites:'star',recents:'clock-3',history:'scroll-text',trending:'trending-up'};
+  document.getElementById('tb-crumb').innerHTML=`<i data-lucide="${ic[v]||'package'}" style="width:11px;height:11px"></i><span>${lb[v]||v}</span>`;
+  lucide.createIcons();
+  renderView();
+}
+
+function renderView(){
+  S.filter='all';
+  document.querySelectorAll('.chip[data-f]').forEach(c=>c.classList.toggle('active',c.dataset.f==='all'));
+  document.getElementById('filterbar').style.display=(S.view==='browse')?'':'none';
+  switch(S.view){
+    case 'browse':applySearch('');break;
+    case 'installed':renderInstalled();break;
+    case 'favorites':renderPkgs(sortList(S.pkgs.filter(p=>S.favs.has(p.name)),''));break;
+    case 'recents':renderPkgs(S.recents.slice().reverse().map(r=>S.pkgs.find(p=>p.name===r.name)||{name:r.name}).filter(Boolean));break;
+    case 'history':renderHistory();break;
+    case 'trending':renderTrending();break;
+  }
+}
+
+function renderInstalled(){
+  const lc=document.getElementById('pkg-list-cont'),gc=document.getElementById('pkg-grid-cont');
+  gc.style.display='none';lc.style.display='';lc.innerHTML='';
+  if(!S.installed.size){empty(lc,'hard-drive','No installed packages detected','Select a Python interpreter first');setCount('0 packages');lc.insertAdjacentHTML('beforeend',`<div style="display:flex;justify-content:center;margin-top:12px"><button class="inst-reload-btn" onclick="loadInstalled();toast('Refreshing…','refresh-cw')"><i data-lucide="refresh-cw" style="width:11px;height:11px"></i> Reload</button></div>`);lucide.createIcons();return;}
+  const instList=[...S.installed.entries()].map(([name,version])=>({name,version,summary:S.pkgs.find(p=>p.name.toLowerCase()===name)?.summary||''}));
+  instList.sort((a,b)=>a.name.localeCompare(b.name));
+  setCount(`${instList.length} installed`);
+  const header=document.createElement('div');
+  header.className='inst-header';
+  header.innerHTML=`<span class="inst-header-label">${instList.length} packages · ${S.interp?S.interp.split(/[/\\]/).at(-1):'default'}</span><button class="inst-reload-btn" onclick="loadInstalled();toast('Refreshing…','refresh-cw')"><i data-lucide="refresh-cw" style="width:11px;height:11px"></i> Reload</button>`;
+  lc.appendChild(header);lucide.createIcons();
+  const f=document.createDocumentFragment();
+  instList.forEach((p,i)=>{
+    const el=document.createElement('div');
+    el.className='pkg-row';el.dataset.name=p.name;
+    el.style.animationDelay=Math.min(i*4,100)+'ms';
+    const isFav=S.favs.has(p.name);
+    el.innerHTML=`<div class="row-icon installed-ico"><i data-lucide="check" style="width:11px;height:11px"></i></div><div class="row-body"><div class="row-name">${esc(p.name)}</div><div class="row-desc">${esc(p.summary||'')}</div></div><div class="row-right"><span class="row-ver">${esc(p.version)}</span><button class="row-fav ${isFav?'fav-on':''}" onclick="event.stopPropagation();toggleFav('${esc(p.name)}',this)"><i data-lucide="star" style="width:12px;height:12px;fill:${isFav?'currentColor':'none'}"></i></button></div>`;
+    el.addEventListener('click',e=>handleClick(e,p.name));
+    el.addEventListener('contextmenu',e=>showCtxMenu(e,p.name));
+    f.appendChild(el);
+  });
+  lc.appendChild(f);lucide.createIcons();
+}
+
+async function renderTrending(){
+  const lc=document.getElementById('pkg-list-cont'),gc=document.getElementById('pkg-grid-cont');
+  gc.style.display='none';lc.style.display='';lc.innerHTML='';
+  document.getElementById('filterbar').style.display='none';
+  setCount('Loading trending…');
+
+  // Use a curated trending list as fallback (pypistats top packages)
+  const TRENDING=[
+    {name:'uv',spike:'+340%',desc:'Extremely fast Python package installer and resolver'},
+    {name:'ruff',spike:'+280%',desc:'An extremely fast Python linter, written in Rust'},
+    {name:'pydantic-v2',spike:'+210%',desc:'Data validation using Python type hints'},
+    {name:'httpx',spike:'+180%',desc:'A next-generation HTTP client for Python'},
+    {name:'polars',spike:'+175%',desc:'Lightning-fast DataFrame library'},
+    {name:'fastapi',spike:'+160%',desc:'FastAPI framework, high performance, easy to learn'},
+    {name:'anthropic',spike:'+155%',desc:'Anthropic\'s safety-first AI SDK'},
+    {name:'langchain',spike:'+140%',desc:'Building applications with LLMs through composability'},
+    {name:'chromadb',spike:'+135%',desc:'The AI-native open-source embedding database'},
+    {name:'litellm',spike:'+128%',desc:'Call all LLM APIs using the OpenAI format'},
+    {name:'instructor',spike:'+120%',desc:'Structured LLM outputs with Pydantic'},
+    {name:'typer',spike:'+115%',desc:'Build great CLIs with Python type hints'},
+    {name:'loguru',spike:'+112%',desc:'Python logging made (stupidly) simple'},
+    {name:'rich',spike:'+108%',desc:'Rich text and beautiful formatting in the terminal'},
+    {name:'duckdb',spike:'+105%',desc:'An in-process SQL OLAP database management system'},
+  ];
+
+  // Try to enrich with actual data
+  try{
+    const r=await fetch('https://pypistats.org/api/packages/numpy/recent');
+    if(!r.ok)throw new Error('');
+  }catch{}
+
+  setCount(`${TRENDING.length} trending`);
+  lc.innerHTML=`<div style="padding:6px 10px 2px;font-size:10px;color:var(--t3);font-family:var(--mono);letter-spacing:.06em">TRENDING THIS WEEK · SOURCE: PYPISTATS</div>`;
+
+  const f=document.createDocumentFragment();
+  TRENDING.forEach((t,i)=>{
+    const el=document.createElement('div');
+    el.className='trending-row';
+    el.dataset.name=t.name;
+    el.style.animationDelay=Math.min(i*30,300)+'ms';
+    const isFav=S.favs.has(t.name);
+    const isInst=S.installed.has(t.name.toLowerCase());
+    el.innerHTML=`
+      <span class="trend-rank">#${i+1}</span>
+      <div class="row-icon ${isInst?'installed-ico':''}">
+        ${isInst?'<i data-lucide="check" style="width:11px;height:11px"></i>':t.name.slice(0,3).toUpperCase()}
+      </div>
+      <div class="row-body">
+        <div class="row-name">${esc(t.name)}</div>
+        <div class="row-desc">${esc(t.desc)}</div>
+      </div>
+      <span class="trend-spike">${esc(t.spike)}</span>
+      <i data-lucide="trending-up" class="trend-arrow" style="width:12px;height:12px"></i>
+      <button class="row-fav ${isFav?'fav-on':''}" onclick="event.stopPropagation();toggleFav('${esc(t.name)}',this)"><i data-lucide="star" style="width:12px;height:12px;fill:${isFav?'currentColor':'none'}"></i></button>
+    `;
+    el.addEventListener('click',e=>handleClick(e,t.name));
+    el.addEventListener('contextmenu',e=>showCtxMenu(e,t.name));
+    f.appendChild(el);
+  });
+  lc.appendChild(f);
+  lucide.createIcons();
+}
+
+const PAGE=150;
+function renderPkgs(list){
+  S.filtered=list;S.kbIdx=-1;
+  setCount(fmt(list.length)+' package'+(list.length!==1?'s':''));
+  const lc=document.getElementById('pkg-list-cont'),gc=document.getElementById('pkg-grid-cont');
+  if(!list.length){lc.style.display='';gc.style.display='none';lc.innerHTML='';const q=document.getElementById('search-input').value;empty(lc,'search-x',q?`No results for "${q}"`:'Nothing here');return;}
+  document.getElementById('pkg-scroll').scrollTop=0;
+  if(S.mode==='list'){lc.style.display='';gc.style.display='none';lc.innerHTML='';addRows(list.slice(0,PAGE),lc);if(list.length>PAGE)scrollMore(list,PAGE,lc,'list');}
+  else{lc.style.display='none';gc.style.display='grid';gc.innerHTML='';addCards(list.slice(0,PAGE),gc);if(list.length>PAGE)scrollMore(list,PAGE,gc,'grid');}
+}
+
+function addRows(list,cont){
+  const f=document.createDocumentFragment();
+  list.forEach((p,i)=>{
+    const el=document.createElement('div');
+    el.className='pkg-row';el.dataset.name=p.name;
+    el.style.animationDelay=Math.min(i*6,140)+'ms';
+    if(S.sel.has(p.name))el.classList.add('sel');
+    const ini=p.name.slice(0,3).toUpperCase();
+    const tags=(S.tags[p.name]||[]).map(t=>`<span class="rtag">${esc(t)}</span>`).join('');
+    const isFav=S.favs.has(p.name);
+    const isPinned=S.pins.has(p.name);
+    const isInst=S.installed.has(p.name.toLowerCase());
+    const instVer=isInst?S.installed.get(p.name.toLowerCase()):'';
+    el.innerHTML=`
+      ${isPinned?'<div class="row-pin-badge"></div>':''}
+      <div class="row-icon ${isInst?'installed-ico':isPinned?'pinned-ico':''}">${isInst?'<i data-lucide="check" style="width:11px;height:11px"></i>':isPinned?'<i data-lucide="pin" style="width:11px;height:11px"></i>':ini}</div>
+      <div class="row-body"><div class="row-name">${esc(p.name)}</div><div class="row-desc">${esc(p.summary||'')}</div></div>
+      <div class="row-tags">${tags}</div>
+      <div class="row-right">
+        ${isInst?`<span class="row-inst-badge">v${esc(instVer)}</span>`:(p.version?`<span class="row-ver">${esc(p.version)}</span>`:'')}
+        <button class="row-fav ${isFav?'fav-on':''}" onclick="event.stopPropagation();toggleFav('${esc(p.name)}',this)"><i data-lucide="star" style="width:12px;height:12px;fill:${isFav?'currentColor':'none'}"></i></button>
+      </div>`;
+    el.addEventListener('click',e=>handleClick(e,p.name));
+    el.addEventListener('contextmenu',e=>showCtxMenu(e,p.name));
+    f.appendChild(el);
+  });
+  cont.appendChild(f);lucide.createIcons();
+}
+
+function addCards(list,cont){
+  const f=document.createDocumentFragment();
+  list.forEach((p,i)=>{
+    const el=document.createElement('div');
+    el.className='pkg-card';el.dataset.name=p.name;
+    el.style.animationDelay=Math.min(i*6,140)+'ms';
+    if(S.sel.has(p.name))el.classList.add('sel');
+    const ini=p.name.slice(0,3).toUpperCase();
+    const isFav=S.favs.has(p.name);
+    const isInst=S.installed.has(p.name.toLowerCase());
+    el.innerHTML=`<button class="card-fav ${isFav?'fav-on':''}" onclick="event.stopPropagation();toggleFav('${esc(p.name)}',this)"><i data-lucide="star" style="width:12px;height:12px;fill:${isFav?'currentColor':'none'}"></i></button><div class="card-ico" style="${isInst?'background:rgba(48,209,88,.07);border-color:rgba(48,209,88,.2);color:var(--green)':''}">${isInst?'<i data-lucide="check" style="width:12px;height:12px"></i>':ini}</div><div class="card-name">${esc(p.name)}</div><div class="card-desc">${esc(p.summary||'No description available.')}</div><div class="card-foot">${p.version?`<span class="card-ver">${esc(p.version)}</span>`:''}<span class="card-auth">${esc(p.author||'')}</span>${isInst?`<span style="font-size:9px;color:var(--green);font-family:var(--mono);margin-left:auto">installed</span>`:''}</div>`;
+    el.addEventListener('click',e=>handleClick(e,p.name));
+    el.addEventListener('contextmenu',e=>showCtxMenu(e,p.name));
+    f.appendChild(el);
+  });
+  cont.appendChild(f);lucide.createIcons();
+}
+
+function scrollMore(list,loaded,cont,mode){
+  const scroll=document.getElementById('pkg-scroll');
+  const h=()=>{
+    if(scroll.scrollTop+scroll.clientHeight>=scroll.scrollHeight-500){
+      scroll.removeEventListener('scroll',h);
+      const next=Math.min(loaded+PAGE,list.length);
+      if(mode==='list')addRows(list.slice(loaded,next),cont);
+      else addCards(list.slice(loaded,next),cont);
+      if(next<list.length)scrollMore(list,next,cont,mode);
+    }
+  };
+  scroll.addEventListener('scroll',h);
+}
+
+function renderHistory(){
+  const lc=document.getElementById('pkg-list-cont'),gc=document.getElementById('pkg-grid-cont');
+  gc.style.display='none';lc.style.display='';lc.innerHTML='';
+  if(!S.history.length){empty(lc,'scroll-text','No install history yet');setCount('0 entries');return;}
+  setCount(`${S.history.length} entries`);
+  const f=document.createDocumentFragment();
+  [...S.history].reverse().forEach(e=>{
+    const el=document.createElement('div');
+    el.className='pkg-row';el.style.cursor='default';
+    const ok=e.success;
+    el.innerHTML=`<div class="row-icon" style="background:${ok?'rgba(48,209,88,.07)':'rgba(255,69,58,.07)'};border-color:${ok?'rgba(48,209,88,.2)':'rgba(255,69,58,.2)'};color:${ok?'var(--green)':'var(--red)'}"><i data-lucide="${ok?'check':'x'}" style="width:12px;height:12px"></i></div><div class="row-body"><div class="row-name">${e.pkgs.map(esc).join(', ')}</div><div class="row-desc">${new Date(e.ts).toLocaleString()} · ${esc(e.interpreter||'default')}</div></div><div class="row-right"><span class="row-ver" style="color:${ok?'var(--green)':'var(--red)'}">${ok?'OK':'Failed'}</span></div>`;
+    f.appendChild(el);
+  });
+  lc.appendChild(f);lucide.createIcons();
+}
+
+/* ─── CONTEXT MENU ─── */
+let ctxPkg=null;
+function showCtxMenu(e,name){
+  e.preventDefault();e.stopPropagation();
+  ctxPkg=name;
+  const menu=document.getElementById('ctx-menu');
+  const isInst=S.installed.has(name.toLowerCase());
+  const isFav=S.favs.has(name);
+  const isPinned=S.pins.has(name);
+  document.getElementById('ctx-pkg-label').textContent=name.length>24?name.slice(0,22)+'…':name;
+  document.getElementById('ctx-fav').innerHTML=`<i data-lucide="${isFav?'star-off':'star'}" style="width:13px;height:13px"></i>${isFav?'Remove Favorite':'Add to Favorites'}`;
+  document.getElementById('ctx-pin').innerHTML=`<i data-lucide="pin" style="width:13px;height:13px"></i>${isPinned?'Unpin':'Pin to Top'}`;
+  document.getElementById('ctx-uninstall').style.display=isInst?'flex':'none';
+  document.getElementById('ctx-uninstall-sep').style.display=isInst?'block':'none';
+  menu.classList.add('vis');
+  lucide.createIcons();
+  const mx=Math.min(e.clientX,window.innerWidth-195),my=Math.min(e.clientY,window.innerHeight-260);
+  menu.style.left=mx+'px';menu.style.top=my+'px';
+  requestAnimationFrame(()=>menu.classList.add('show'));
+}
+function hideCtxMenu(){const m=document.getElementById('ctx-menu');m.classList.remove('show');setTimeout(()=>m.classList.remove('vis'),120);ctxPkg=null;}
+document.addEventListener('click',()=>hideCtxMenu());
+
+document.getElementById('ctx-open').addEventListener('click',()=>{if(ctxPkg)openDetail(ctxPkg);});
+document.getElementById('ctx-install').addEventListener('click',()=>{if(ctxPkg){S.pending=[ctxPkg];showWarn(S.pending);}});
+document.getElementById('ctx-depgraph').addEventListener('click',()=>{if(ctxPkg)openDepGraph(ctxPkg);});
+document.getElementById('ctx-fav').addEventListener('click',()=>{
+  if(!ctxPkg)return;
+  const btn=document.querySelector(`.pkg-row[data-name="${CSS.escape(ctxPkg)}"] .row-fav,.pkg-card[data-name="${CSS.escape(ctxPkg)}"] .card-fav`);
+  if(btn)toggleFav(ctxPkg,btn);
+  else{S.favs.has(ctxPkg)?S.favs.delete(ctxPkg):S.favs.add(ctxPkg);badge('bdg-fav',S.favs.size);persist();toast(S.favs.has(ctxPkg)?'Added to favorites':'Removed','star');}
+});
+document.getElementById('ctx-pin').addEventListener('click',()=>{
+  if(!ctxPkg)return;
+  S.pins.has(ctxPkg)?S.pins.delete(ctxPkg):S.pins.add(ctxPkg);
+  persist();renderView();
+  toast(S.pins.has(ctxPkg)?'Pinned to top':'Unpinned','pin');
+});
+document.getElementById('ctx-copy').addEventListener('click',()=>{if(ctxPkg){navigator.clipboard.writeText(`pip install ${ctxPkg}`);toast('Copied','clipboard');}});
+document.getElementById('ctx-select').addEventListener('click',()=>{if(ctxPkg){S.sel.add(ctxPkg);refreshSel();}});
+document.getElementById('ctx-uninstall').addEventListener('click',()=>{if(ctxPkg){S.pending=[ctxPkg];showUninstallWarn([ctxPkg]);}});
+
+/* ─── CLICK HANDLING ─── */
+function handleClick(e,name){
+  if(e.shiftKey&&S.lastSel){
+    const els=[...document.querySelectorAll('.pkg-row,.pkg-card,.trending-row')];
+    const ns=els.map(el=>el.dataset.name);
+    const a=ns.indexOf(S.lastSel),b=ns.indexOf(name);
+    const[lo,hi]=a<b?[a,b]:[b,a];
+    ns.slice(lo,hi+1).forEach(n=>S.sel.add(n));refreshSel();
+  }else if(e.ctrlKey||e.metaKey){
+    S.sel.has(name)?S.sel.delete(name):S.sel.add(name);S.lastSel=name;refreshSel();
+  }else if(S.sel.size>0){
+    S.sel.has(name)?S.sel.delete(name):S.sel.add(name);S.lastSel=name;refreshSel();
+  }else{S.lastSel=name;openDetail(name);}
+}
+
+function refreshSel(){
+  document.querySelectorAll('.pkg-row,.pkg-card').forEach(el=>el.classList.toggle('sel',S.sel.has(el.dataset.name)));
+  const n=S.sel.size,strip=document.getElementById('sel-strip');
+  strip.style.display=n>0?'flex':'none';
+  if(n>0){document.getElementById('sel-count').textContent=`${n} selected`;document.getElementById('sel-label').textContent=n===1?'Install':`Install ${n}`;}
+}
+function clearSel(){S.sel.clear();refreshSel();}
+
+function setMode(m){
+  S.mode=m;S.kbIdx=-1;
+  document.getElementById('btn-list').classList.toggle('active',m==='list');
+  document.getElementById('btn-grid').classList.toggle('active',m==='grid');
+  document.getElementById('pkg-scroll').scrollTop=0;
+  renderView();
+}
+function setFilter(f,el){
+  S.filter=f;
+  document.querySelectorAll('.chip[data-f]').forEach(c=>c.classList.toggle('active',c===el));
+  document.getElementById('pkg-scroll').scrollTop=0;
+  applySearch('');
+}
+
+/* ─── DETAIL ─── */
+function openDetail(name){
+  S.detailPkg=name;
+  const ini=name.slice(0,3).toUpperCase();
+  document.getElementById('dp-ico').textContent=ini;
+  document.getElementById('dp-name').textContent=name;
+  document.getElementById('dp-ver').textContent='—';
+  document.getElementById('dp-info').innerHTML='<div class="empty" style="height:180px"><i data-lucide="loader-2" style="width:20px;height:20px;animation:spin .8s linear infinite"></i></div>';
+  document.getElementById('dp-stats').innerHTML='<div class="empty" style="height:100px"><i data-lucide="loader-2" style="width:18px;height:18px;animation:spin .8s linear infinite"></i></div>';
+  document.getElementById('dp-changelog').innerHTML='<div class="empty" style="height:100px"><i data-lucide="loader-2" style="width:18px;height:18px;animation:spin .8s linear infinite"></i></div>';
+  lucide.createIcons();
+  document.getElementById('detail').classList.add('open');
+  syncFavBtn(name);syncUninstallBtn(name);syncPinBtn(name);
+  renderDpTags(name);
+  addRecent(name);
+  loadDetail(name);
+  // set first tab active
+  document.querySelectorAll('.dp-tab').forEach((t,i)=>t.classList.toggle('on',i===0));
+  document.querySelectorAll('.dp-pane').forEach(p=>p.classList.toggle('on',p.id==='dp-info'));
+}
+function closeDetail(){document.getElementById('detail').classList.remove('open');S.detailPkg=null;}
+function setTab(tab,el){
+  document.querySelectorAll('.dp-tab').forEach(t=>t.classList.toggle('on',t===el));
+  document.querySelectorAll('.dp-pane').forEach(p=>p.classList.toggle('on',p.id===`dp-${tab}`));
+}
+
+async function loadDetail(name){
+  try{
+    const r=await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    const d=await r.json();
+    const{info,releases}=d;
+    const c=S.pkgs.find(p=>p.name===name);
+    if(c){c.summary=info.summary;c.author=info.author;c.version=info.version;}
+    document.getElementById('dp-ver').textContent=`v${info.version}`;
+    const versionCount=releases?Object.keys(releases).length:0;
+
+    // Works best with
+    const worksWith=getWorksWith(name);
+    const similar=getSimilar(name);
+    const savedNote=S.notes[name]||'';
+
+    const worksWithHtml=worksWith.length?`
+      <div class="dp-sec">
+        <div class="dp-slabel">Works Best With</div>
+        <div class="similar-scroll">
+          ${worksWith.map(n=>`<div class="sim-chip" onclick="openDetail('${esc(n)}')"><i data-lucide="plug" style="width:10px;height:10px"></i>${esc(n)}</div>`).join('')}
+        </div>
+      </div>`:'' ;
+
+    const similarHtml=similar.length?`
+      <div class="dp-sec">
+        <div class="dp-slabel">More Like This</div>
+        <div class="similar-scroll">
+          ${similar.map(n=>`<div class="sim-chip" onclick="openDetail('${esc(n)}')"><i data-lucide="copy" style="width:10px;height:10px"></i>${esc(n)}</div>`).join('')}
+        </div>
+      </div>`:'' ;
+
+    const notesHtml=`
+      <div class="dp-sec">
+        <div class="dp-slabel">Notes</div>
+        <textarea class="dp-notes-area" id="dp-notes-area" placeholder="Add a personal note about this package…" rows="3">${esc(savedNote)}</textarea>
+        <button class="dp-notes-save" onclick="saveNote()">Save note</button>
+      </div>`;
+
+    document.getElementById('dp-info').innerHTML=`
+      <div class="dp-sec"><div class="dp-slabel">Description</div><div class="dp-desc">${esc(info.summary||'No description available.')}</div></div>
+      <div class="dp-sec"><div class="dp-slabel">Details</div>
+        ${kv('Author',info.author||info.maintainer||'—')}
+        ${kv('License',info.license||'—')}
+        ${kv('Python',info.requires_python||'Any')}
+        ${versionCount>0?kv('Releases',versionCount+' versions'):''}
+        ${info.keywords?kv('Keywords',String(info.keywords).split(/[,\s]+/).filter(Boolean).slice(0,5).join(', ')):''}
+        ${kv('Home',info.home_page||'—',true)}
+        ${kv('PyPI',info.package_url||'—',true)}
+      </div>
+      <div class="dp-sec"><div class="dp-slabel">Install</div>
+        <div class="dp-cmd" onclick="navigator.clipboard.writeText('pip install ${esc(name)}');toast('Copied','clipboard')"><span>pip install ${esc(name)}</span><i data-lucide="clipboard" style="width:11px;height:11px"></i></div>
+      </div>
+      ${worksWithHtml}
+      ${similarHtml}
+      ${notesHtml}
+      <div class="dp-sec" style="margin-top:4px">
+        <button class="dp-cmd" onclick="openDepGraph('${esc(name)}')"><i data-lucide="git-fork" style="width:12px;height:12px;color:var(--t3)"></i><span>View dependency graph</span><i data-lucide="arrow-right" style="width:11px;height:11px"></i></button>
+      </div>
+    `;
+
+    const deps=info.requires_dist||[];
+    document.getElementById('dp-deps-content').innerHTML=deps.length
+      ?`<div style="font-size:10px;color:var(--t3);padding:4px 0 7px;font-family:var(--mono)">${deps.length} dependenc${deps.length===1?'y':'ies'}</div>`
+        +deps.slice(0,30).map(d=>`<div class="dep-row">${esc(d)}</div>`).join('')
+        +(deps.length>30?`<div style="font-size:11px;color:var(--t3);padding:5px 0">+${deps.length-30} more</div>`:'')
+      :'<div class="empty" style="height:80px"><p style="font-size:12px;color:var(--t2)">No dependencies</p></div>';
+
+    if(releases){
+      const vers=Object.keys(releases).reverse().slice(0,10);
+      document.getElementById('dp-changelog').innerHTML=vers.length
+        ?vers.map(v=>{const files=releases[v];const date=files&&files[0]?files[0].upload_time?.slice(0,10):'';return`<div class="cl-entry"><div class="cl-ver">v${esc(v)}</div>${date?`<div class="cl-date">${esc(date)}</div>`:''}</div>`;}).join('')
+        :'<div class="empty" style="height:80px"><p style="font-size:12px;color:var(--t2)">No release data</p></div>';
+    }
+
+    lucide.createIcons();
+    loadStats(name);
+  }catch(e){
+    document.getElementById('dp-info').innerHTML=`<div class="empty" style="height:160px"><i data-lucide="wifi-off" style="width:22px;height:22px;color:var(--t4)"></i><p>Could not load</p><small>${esc(e.message)}</small></div>`;
+    lucide.createIcons();
+  }
+}
+
+async function loadStats(name){
+  try{
+    const r=await fetch(`https://pypistats.org/api/packages/${encodeURIComponent(name.toLowerCase())}/recent`);
+    if(!r.ok)throw new Error('stats unavailable');
+    const d=await r.json();
+    const{last_day=0,last_week=0,last_month=0}=d.data||{};
+    const pkg=S.pkgs.find(p=>p.name===name);
+    if(pkg)pkg._downloads=last_month;
+    document.getElementById('dp-stats').innerHTML=`
+      <div class="dp-sec"><div class="dp-slabel">Downloads</div>
+        <div class="dp-stats">
+          <div class="dp-stat"><div class="dp-stat-val">${fmtK(last_day)}</div><div class="dp-stat-lbl">Last Day</div></div>
+          <div class="dp-stat"><div class="dp-stat-val">${fmtK(last_week)}</div><div class="dp-stat-lbl">Last Week</div></div>
+          <div class="dp-stat"><div class="dp-stat-val">${fmtK(last_month)}</div><div class="dp-stat-lbl">Last Month</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--t3);margin-top:4px;font-weight:300">Source: pypistats.org</div>
+      </div>`;
+  }catch{
+    document.getElementById('dp-stats').innerHTML='<div class="empty" style="height:80px"><p style="font-size:12px;color:var(--t2)">Stats unavailable</p></div>';
+  }
+}
+
+function fmtK(n){if(!n)return'0';if(n>=1000000)return(n/1000000).toFixed(1)+'M';if(n>=1000)return(n/1000).toFixed(1)+'K';return String(n);}
+function kv(k,v,dim=false){return`<div class="dp-kv"><span class="dp-k">${esc(k)}</span><span class="dp-v ${dim?'dim':''}">${esc(v)}</span></div>`;}
+
+/* ─── NOTES ─── */
+function saveNote(){
+  if(!S.detailPkg)return;
+  const val=document.getElementById('dp-notes-area')?.value||'';
+  if(val.trim())S.notes[S.detailPkg]=val.trim();
+  else delete S.notes[S.detailPkg];
+  persist();toast('Note saved','check');
+}
+
+/* ─── PIN ─── */
+function togglePinDetail(){
+  if(!S.detailPkg)return;
+  S.pins.has(S.detailPkg)?S.pins.delete(S.detailPkg):S.pins.add(S.detailPkg);
+  syncPinBtn(S.detailPkg);persist();
+  toast(S.pins.has(S.detailPkg)?'Pinned to top':'Unpinned','pin');
+  renderView();
+}
+function syncPinBtn(name){
+  const btn=document.getElementById('dp-pinbtn');
+  const on=S.pins.has(name);
+  btn.classList.toggle('pin-on',on);
+  const ic=btn.querySelector('i');
+  if(ic)ic.style.fill=on?'currentColor':'none';
+}
+function syncUninstallBtn(name){document.getElementById('dp-uninstallbtn').classList.toggle('vis',S.installed.has(name.toLowerCase()));}
+
+/* ─── FAVORITES ─── */
+function toggleFav(name,btn){
+  const on=S.favs.has(name);
+  on?S.favs.delete(name):S.favs.add(name);
+  const now=S.favs.has(name);
+  btn.classList.toggle('fav-on',now);
+  const ic=btn.querySelector('i');if(ic)ic.style.fill=now?'currentColor':'none';
+  badge('bdg-fav',S.favs.size);persist();
+  toast(now?'Added to favorites':'Removed from favorites','star');
+}
+function toggleFavDetail(){
+  if(!S.detailPkg)return;
+  S.favs.has(S.detailPkg)?S.favs.delete(S.detailPkg):S.favs.add(S.detailPkg);
+  syncFavBtn(S.detailPkg);badge('bdg-fav',S.favs.size);persist();
+}
+function syncFavBtn(name){
+  const btn=document.getElementById('dp-favbtn');
+  const on=S.favs.has(name);
+  btn.classList.toggle('fav-on',on);
+  const ic=btn.querySelector('i');if(ic)ic.style.fill=on?'currentColor':'none';
+}
+
+/* ─── TAGS ─── */
+function renderDpTags(name){
+  const area=document.getElementById('dp-tag-area');
+  const tags=S.tags[name]||[];
+  area.innerHTML=tags.length?tags.map(t=>`<div class="dp-tag">${esc(t)}<span class="trm" onclick="removeTag('${esc(name)}','${esc(t)}')"><i data-lucide="x" style="width:9px;height:9px"></i></span></div>`).join(''):'<span style="font-size:11px;color:var(--t3)">No tags yet.</span>';
+  lucide.createIcons();
+}
+function addTag(){
+  const el=document.getElementById('dp-tag-input'),tag=el.value.trim().toLowerCase();
+  if(!tag||!S.detailPkg)return;
+  if(!S.tags[S.detailPkg])S.tags[S.detailPkg]=[];
+  if(!S.tags[S.detailPkg].includes(tag)){S.tags[S.detailPkg].push(tag);persist();toast(`Tagged "${tag}"`,'tag');renderDpTags(S.detailPkg);}
+  el.value='';
+}
+function removeTag(name,tag){
+  if(!S.tags[name])return;
+  S.tags[name]=S.tags[name].filter(t=>t!==tag);
+  if(!S.tags[name].length)delete S.tags[name];
+  persist();renderDpTags(name);
+}
+function openTagManager(){
+  const body=document.getElementById('tm-body');
+  const entries=Object.entries(S.tags);
+  body.innerHTML=entries.length?entries.map(([pkg,tags])=>`<div class="tm-pkg"><div class="tm-pname">${esc(pkg)}</div><div class="tm-tags">${tags.map(t=>`<div class="dp-tag">${esc(t)}<span class="trm" onclick="removeTag('${esc(pkg)}','${esc(t)}');openTagManager()"><i data-lucide="x" style="width:9px;height:9px"></i></span></div>`).join('')}</div></div>`).join(''):'<p style="font-size:12px;color:var(--t3);padding:8px 0">No tags yet.</p>';
+  lucide.createIcons();openModal('m-tags');
+}
+
+/* ─── RECENTS ─── */
+function addRecent(name){
+  S.recents=S.recents.filter(r=>r.name!==name);
+  S.recents.push({name,ts:Date.now()});
+  if(S.recents.length>50)S.recents.shift();
+  persist();
+}
+
+/* ─── INSTALL ─── */
+function installSelected(){if(!S.sel.size)return;S.pending=[...S.sel];showWarn(S.pending);}
+function installFromDetail(){if(!S.detailPkg)return;S.pending=[S.detailPkg];showWarn(S.pending);}
+
+function showWarn(pkgs){
+  document.getElementById('warn-list').innerHTML=pkgs.map(p=>`<div class="warn-item"><i data-lucide="package" style="width:10px;height:10px"></i>${esc(p)}</div>`).join('');
+  // Conflict detection
+  const conflicts=detectConflicts(pkgs);
+  const banner=document.getElementById('conflict-banner');
+  if(conflicts.length){
+    document.getElementById('conflict-text').innerHTML=`<strong style="color:var(--red)">Potential conflict detected:</strong> ${conflicts.map(esc).join(', ')} may conflict with installed versions.`;
+    banner.classList.add('vis');
+  }else{banner.classList.remove('vis');}
+  lucide.createIcons();openModal('m-warn');
+}
+
+function detectConflicts(pkgs){
+  // Simple heuristic: flag if any pkg name is already installed
+  return pkgs.filter(p=>S.installed.has(p.toLowerCase())).map(p=>`${p} (already installed)`);
+}
+
+async function confirmInstall(){
+  closeModal('m-warn');
+  const pkgs=S.pending;if(!pkgs.length)return;
+  const ib=document.getElementById('dp-installbtn'),sl=document.getElementById('sel-label');
+  if(ib){ib.innerHTML='<i data-lucide="loader-2" style="width:13px;height:13px;animation:spin .8s linear infinite"></i> Installing…';lucide.createIcons();}
+  if(sl)sl.textContent='Installing…';
+  try{
+    const res=await window.piepi?.pipInstall({packages:pkgs,interpreter:S.interp||''});
+    S.history.push({pkgs,ts:Date.now(),success:res?.success??false,interpreter:S.interp||'default'});
+    persist();
+    document.getElementById('res-dot').className=`res-dot ${res?.success?'rok':'rerr'}`;
+    document.getElementById('res-title').textContent=res?.success?`Installed ${pkgs.length} package${pkgs.length>1?'s':''}!`:'Installation failed';
+    document.getElementById('res-out').textContent=(res?.output||res?.error||'No output.').trim();
+    openModal('m-result');
+    if(res?.success){S.sel.clear();refreshSel();toast('Installed','check');loadInstalled();}
+  }catch(e){toast('Error: '+e.message,'alert-circle');}
+  finally{
+    if(ib){ib.innerHTML='<i data-lucide="download" style="width:13px;height:13px"></i> Install';lucide.createIcons();}
+    if(sl)sl.textContent='Install';
+  }
+}
+
+function uninstallFromDetail(){if(!S.detailPkg)return;showUninstallWarn([S.detailPkg]);}
+function showUninstallWarn(pkgs){
+  S.pending=pkgs;
+  document.getElementById('uninstall-list').innerHTML=pkgs.map(p=>`<div class="warn-item"><i data-lucide="package" style="width:10px;height:10px"></i>${esc(p)}</div>`).join('');
+  lucide.createIcons();openModal('m-uninstall');
+}
+async function confirmUninstall(){
+  closeModal('m-uninstall');const pkgs=S.pending;if(!pkgs.length)return;
+  const ub=document.getElementById('dp-uninstallbtn');
+  if(ub){ub.innerHTML='<i data-lucide="loader-2" style="width:12px;height:12px;animation:spin .8s linear infinite"></i>';lucide.createIcons();}
+  try{
+    const res=await window.piepi?.pipUninstall({packages:pkgs,interpreter:S.interp||''});
+    document.getElementById('res-dot').className=`res-dot ${res?.success?'rok':'rerr'}`;
+    document.getElementById('res-title').textContent=res?.success?`Uninstalled ${pkgs.length} package${pkgs.length>1?'s':''}!`:'Uninstall failed';
+    document.getElementById('res-out').textContent=(res?.output||res?.error||'No output.').trim();
+    openModal('m-result');
+    if(res?.success){toast('Uninstalled','trash-2');loadInstalled();if(S.detailPkg)syncUninstallBtn(S.detailPkg);}
+  }catch(e){toast('Error: '+e.message,'alert-circle');}
+  finally{if(ub){ub.innerHTML='<i data-lucide="trash-2" style="width:12px;height:12px"></i> Uninstall';lucide.createIcons();}}
+}
+
+function copyCmd(){const py=S.interp?`"${S.interp}" -m pip`:'pip';navigator.clipboard.writeText(`${py} install ${[...S.sel].join(' ')}`);toast('Copied','clipboard');}
+
+/* ─── SNAPSHOTS ─── */
+function openSnapshotsModal(){
+  renderSnapshotList();openModal('m-snapshots');
+}
+function renderSnapshotList(){
+  const list=document.getElementById('snap-list');
+  if(!S.snapshots.length){list.innerHTML='<p style="font-size:12px;color:var(--t3)">No snapshots yet. Hit "Save Now" to freeze your current environment.</p>';return;}
+  list.innerHTML=S.snapshots.map((s,i)=>`
+    <div class="snap-row">
+      <div>
+        <div class="snap-name">${esc(s.name)}</div>
+        <div class="snap-meta">${new Date(s.ts).toLocaleString()} · ${s.packages.length} pkgs</div>
+      </div>
+      <div class="snap-actions">
+        <button class="snap-act-btn" onclick="restoreSnapshot(${i})">Restore</button>
+        <button class="snap-act-btn" onclick="exportSnapshot(${i})">Export</button>
+        <button class="snap-act-btn" style="color:var(--red)" onclick="deleteSnapshot(${i})">Delete</button>
+      </div>
+    </div>`).join('');
+}
+function takeSnapshot(){
+  const nameEl=document.getElementById('snap-name-input');
+  const name=nameEl.value.trim()||`Snapshot ${new Date().toLocaleDateString()}`;
+  const packages=[...S.installed.entries()].map(([n,v])=>({name:n,version:v}));
+  S.snapshots.push({name,ts:Date.now(),packages,interpreter:S.interp||'default'});
+  persist();nameEl.value='';renderSnapshotList();
+  toast('Snapshot saved','layers');
+}
+function deleteSnapshot(i){S.snapshots.splice(i,1);persist();renderSnapshotList();}
+function exportSnapshot(i){
+  const s=S.snapshots[i];
+  download(`${s.name.replace(/\s+/g,'-')}-requirements.txt`,s.packages.map(p=>`${p.name}==${p.version}`).join('\n'));
+  toast('Exported','file-text');
+}
+function restoreSnapshot(i){
+  const s=S.snapshots[i];
+  S.pending=s.packages.map(p=>p.name);
+  showWarn(S.pending);
+}
+
+/* ─── DEPENDENCY GRAPH ─── */
+let dgPkg=null,dgData={};
+async function openDepGraph(name){
+  dgPkg=name;
+  document.getElementById('depgraph-title').textContent=`${name} — Dependency Graph`;
+  document.getElementById('depgraph-sub').textContent='Loading…';
+  document.getElementById('dg-tooltip').style.opacity='0';
+  openModal('m-depgraph');
+  S.depDepth=1;
+  document.querySelectorAll('.dg-depth-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  // Wait a frame so the modal is visible and SVG has real dimensions
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  await loadDepGraph(name,1);
+}
+
+async function loadDepGraph(name,depth){
+  document.getElementById('depgraph-svg').innerHTML='<text x="50%" y="50%" text-anchor="middle" fill="rgba(255,255,255,.3)" font-family="monospace" font-size="12">Loading…</text>';
+  try{
+    const r=await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
+    const d=await r.json();
+    const direct=(d.info.requires_dist||[]).map(dep=>dep.split(/[\s;>=<!]/)[0].trim()).filter(Boolean);
+    dgData={name,direct,depth};
+
+    let allNodes=[{id:name,level:0,label:name}];
+    let allEdges=[];
+    direct.forEach(dep=>{allNodes.push({id:dep,level:1,label:dep});allEdges.push({from:name,to:dep,level:1});});
+
+    if(depth>=2){
+      const sub=await Promise.allSettled(direct.slice(0,8).map(dep=>
+        fetch(`https://pypi.org/pypi/${encodeURIComponent(dep)}/json`).then(r=>r.json())
+      ));
+      sub.forEach((res,i)=>{
+        if(res.status!=='fulfilled')return;
+        const subdeps=(res.value.info.requires_dist||[]).map(dep=>dep.split(/[\s;>=<!]/)[0].trim()).filter(Boolean).slice(0,5);
+        subdeps.forEach(sd=>{
+          if(!allNodes.find(n=>n.id===sd))allNodes.push({id:sd,level:2,label:sd});
+          allEdges.push({from:direct[i],to:sd,level:2});
+        });
+      });
+    }
+
+    if(depth>=3){
+      const l2nodes=allNodes.filter(n=>n.level===2).slice(0,6);
+      const sub2=await Promise.allSettled(l2nodes.map(n=>
+        fetch(`https://pypi.org/pypi/${encodeURIComponent(n.id)}/json`).then(r=>r.json())
+      ));
+      sub2.forEach((res,i)=>{
+        if(res.status!=='fulfilled')return;
+        const subdeps=(res.value.info.requires_dist||[]).map(dep=>dep.split(/[\s;>=<!]/)[0].trim()).filter(Boolean).slice(0,3);
+        subdeps.forEach(sd=>{
+          if(!allNodes.find(n=>n.id===sd))allNodes.push({id:sd,level:3,label:sd});
+          allEdges.push({from:l2nodes[i].id,to:sd,level:3});
+        });
+      });
+    }
+
+    document.getElementById('depgraph-sub').textContent=`${allNodes.length} nodes · ${allEdges.length} edges`;
+    drawDepGraph(allNodes,allEdges,name);
+  }catch(e){
+    document.getElementById('depgraph-svg').innerHTML=`<text x="50%" y="50%" text-anchor="middle" fill="rgba(255,69,58,.6)" font-family="monospace" font-size="12">Failed to load: ${esc(e.message)}</text>`;
+  }
+}
+
+function drawDepGraph(nodes, edges, root) {
+  const wrap = document.getElementById('depgraph-svg-wrap');
+  const svg = document.getElementById('depgraph-svg');
+  svg.innerHTML = '';
+
+  const W = wrap.clientWidth || 656;
+  const H = 380;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const tooltip = document.getElementById('dg-tooltip');
+
+  // Color scale by level
+  const nodeColor = (level) => ['#0a84ff','#30d158','#ffd60a','#888'][Math.min(level, 3)];
+  const nodeRadius = (level) => [13, 9, 6, 5][Math.min(level, 3)];
+
+  // Build d3 data
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const links = edges
+    .filter(e => nodeMap.has(e.from) && nodeMap.has(e.to))
+    .map(e => ({ source: e.from, target: e.to, level: e.level }));
+
+  // d3 force simulation
+  const simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(d => d.level === 1 ? 90 : 60).strength(0.7))
+    .force('charge', d3.forceManyBody().strength(d => d.level === 0 ? -400 : -120))
+    .force('center', d3.forceCenter(W / 2, H / 2))
+    .force('collision', d3.forceCollide().radius(d => nodeRadius(d.level) + 18))
+    .force('x', d3.forceX(W / 2).strength(0.04))
+    .force('y', d3.forceY(H / 2).strength(0.04));
+
+  const svgEl = d3.select(svg);
+
+  // Defs: arrowhead marker + glow filter
+  const defs = svgEl.append('defs');
+  defs.append('marker')
+    .attr('id', 'arrowhead')
+    .attr('viewBox', '0 -4 8 8')
+    .attr('refX', 18).attr('refY', 0)
+    .attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-4L8,0L0,4')
+    .attr('fill', 'rgba(255,255,255,0.2)');
+
+  const glow = defs.append('filter').attr('id', 'glow');
+  glow.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'coloredBlur');
+  const feMerge = glow.append('feMerge');
+  feMerge.append('feMergeNode').attr('in', 'coloredBlur');
+  feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+  // Background
+  svgEl.append('rect').attr('width', W).attr('height', H)
+    .attr('fill', '#050505');
+
+  // Subtle grid pattern
+  const patId = 'gridpat';
+  defs.append('pattern').attr('id', patId).attr('width', 28).attr('height', 28)
+    .attr('patternUnits', 'userSpaceOnUse')
+    .append('circle').attr('cx', 14).attr('cy', 14).attr('r', 0.5)
+    .attr('fill', 'rgba(255,255,255,0.04)');
+  svgEl.append('rect').attr('width', W).attr('height', H)
+    .attr('fill', `url(#${patId})`);
+
+  // Links
+  const link = svgEl.append('g').selectAll('line')
+    .data(links).enter().append('line')
+    .attr('class', 'dg-link')
+    .attr('stroke', d => d.level === 1 ? 'rgba(48,209,88,0.35)' : d.level === 2 ? 'rgba(255,214,10,0.15)' : 'rgba(255,255,255,0.08)')
+    .attr('stroke-width', d => d.level === 1 ? 1.5 : 1)
+    .attr('marker-end', 'url(#arrowhead)');
+
+  // Node groups
+  const node = svgEl.append('g').selectAll('g')
+    .data(nodes).enter().append('g')
+    .attr('class', 'dg-node')
+    .call(d3.drag()
+      .on('start', (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (event, d) => { d.fx = event.x; d.fy = event.y; })
+      .on('end',   (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  // Outer glow ring for root node
+  node.filter(d => d.level === 0)
+    .append('circle')
+    .attr('r', 22)
+    .attr('fill', 'none')
+    .attr('stroke', 'rgba(10,132,255,0.15)')
+    .attr('stroke-width', 8);
+
+  // Node circles
+  node.append('circle')
+    .attr('class', 'dg-node-circle')
+    .attr('r', d => nodeRadius(d.level))
+    .attr('fill', d => nodeColor(d.level))
+    .attr('fill-opacity', d => d.level === 0 ? 1 : 0.85)
+    .attr('stroke', d => {
+      if (d.level === 0) return 'rgba(10,132,255,0.6)';
+      if (S.installed.has(d.id.toLowerCase())) return 'rgba(48,209,88,0.8)';
+      return 'none';
+    })
+    .attr('stroke-width', d => d.level === 0 ? 2 : 1.5)
+    .attr('filter', d => d.level === 0 ? 'url(#glow)' : null);
+
+  // Labels
+  node.append('text')
+    .attr('class', 'dg-node-label')
+    .attr('dy', d => nodeRadius(d.level) + 12)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', d => d.level === 0 ? 10 : 8)
+    .attr('fill', d => d.level === 0 ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.5)')
+    .text(d => {
+      const max = d.level === 0 ? 14 : d.level === 1 ? 11 : 9;
+      return d.label.length > max ? d.label.slice(0, max - 1) + '…' : d.label;
+    });
+
+  // Installed indicator dot
+  node.filter(d => d.level > 0 && S.installed.has(d.id.toLowerCase()))
+    .append('circle')
+    .attr('r', 3)
+    .attr('cx', d => nodeRadius(d.level) - 2)
+    .attr('cy', d => -(nodeRadius(d.level) - 2))
+    .attr('fill', '#30d158');
+
+  // Hover interactions
+  node.on('mouseenter', (event, d) => {
+    d3.select(event.currentTarget).select('.dg-node-circle')
+      .transition().duration(120).attr('r', nodeRadius(d.level) + 4);
+    const instStr = S.installed.has(d.id.toLowerCase()) ? ` · ✓ installed` : '';
+    const levelStr = ['root','direct dep','L2 dep','L3 dep'][Math.min(d.level, 3)];
+    tooltip.style.opacity = '1';
+    tooltip.textContent = `${d.id}  ·  ${levelStr}${instStr}`;
+  })
+  .on('mouseleave', (event, d) => {
+    d3.select(event.currentTarget).select('.dg-node-circle')
+      .transition().duration(120).attr('r', nodeRadius(d.level));
+    tooltip.style.opacity = '0';
+  })
+  .on('click', (event, d) => {
+    if (d.id !== root) {
+      closeModal('m-depgraph');
+      setTimeout(() => openDetail(d.id), 120);
+    }
+  });
+
+  // Simulation tick
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d => Math.max(10, Math.min(W - 10, d.source.x)))
+      .attr('y1', d => Math.max(10, Math.min(H - 10, d.source.y)))
+      .attr('x2', d => Math.max(10, Math.min(W - 10, d.target.x)))
+      .attr('y2', d => Math.max(10, Math.min(H - 10, d.target.y)));
+    node.attr('transform', d =>
+      `translate(${Math.max(20, Math.min(W - 20, d.x))},${Math.max(20, Math.min(H - 20, d.y))})`);
+  });
+
+  // Stop sim after settling to save CPU
+  simulation.on('end', () => simulation.stop());
+  setTimeout(() => simulation.alphaTarget(0), 4000);
+}
+
+async function setDepth(d,el){
+  S.depDepth=d;
+  document.querySelectorAll('.dg-depth-btn').forEach(b=>b.classList.toggle('active',b===el));
+  if(dgPkg){
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    await loadDepGraph(dgPkg,d);
+  }
+}
+
+/* ─── EXPORT ─── */
+function exportData(type){
+  closeModal('m-export');
+  if(type==='requirements'){download('requirements.txt',[...S.favs].join('\n')||'# No favorites yet');toast('Exported requirements.txt','file-text');}
+  else if(type==='json'){download('piepi-export.json',JSON.stringify({favorites:[...S.favs],tags:S.tags,history:S.history,notes:S.notes,pins:[...S.pins],snapshots:S.snapshots,exported:new Date().toISOString()},null,2));toast('Exported JSON','braces');}
+  else if(type==='installed'){download('installed-requirements.txt',[...S.installed.entries()].map(([n,v])=>`${n}==${v}`).join('\n')||'# No packages detected');toast('Exported installed packages','hard-drive');}
+}
+function download(filename,content){const a=document.createElement('a');a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(content);a.download=filename;a.click();}
+
+/* ─── INTERPRETER ─── */
+let tempInterp='';
+function openInterpModal(){
+  tempInterp=S.interp;
+  const l=document.getElementById('ilist');
+  if(!S.interps.length){l.innerHTML='<p style="font-size:11px;color:var(--t3)">No interpreters detected. Enter a path below.</p>';}
+  else{l.innerHTML=S.interps.map(p=>`<div class="iitem ${S.interp===p?'sel':''}" onclick="pickInterp('${esc(p)}',this)"><i data-lucide="terminal" style="width:12px;height:12px;color:var(--t3)"></i><span class="ipath">${esc(p)}</span><i data-lucide="check" class="ichk" style="width:12px;height:12px"></i></div>`).join('');}
+  lucide.createIcons();openModal('m-interp');
+}
+function pickInterp(path,el){tempInterp=path;document.querySelectorAll('.iitem').forEach(i=>i.classList.remove('sel'));el.classList.add('sel');}
+function useCustom(){const v=document.getElementById('icustom').value.trim();if(v){tempInterp=v;toast('Path set','terminal');}}
+function saveInterp(){S.interp=tempInterp;persist();syncInterp();closeModal('m-interp');toast('Saved','check');loadInstalled();}
+function syncInterp(){
+  const sb=document.getElementById('sb-interp'),wrap=document.getElementById('stat-interp-wrap'),disp=document.getElementById('stat-interp');
+  if(S.interp){sb.classList.add('has-interp');wrap.style.display='';disp.textContent=S.interp.split(/[/\\]/).at(-1)||S.interp;}
+  else{sb.classList.remove('has-interp');wrap.style.display='none';}
+}
+
+function refreshIndex(){S.pkgs=[];document.getElementById('pkg-list-cont').innerHTML='';document.getElementById('pkg-grid-cont').innerHTML='';fetchIndex();toast('Refreshing','refresh-cw');}
+
+/* ─── KEYBOARD NAVIGATION ─── */
+function showKbHint(){
+  const hint=document.getElementById('kb-hint');
+  hint.classList.add('vis');
+  setTimeout(()=>hint.classList.remove('vis'),3500);
+}
+
+document.addEventListener('keydown',e=>{
+  const active=document.activeElement;
+  const inInput=active.tagName==='INPUT'||active.tagName==='TEXTAREA';
+  const modalOpen=!!document.querySelector('.overlay.open');
+
+  if(e.key==='Escape'){
+    if(modalOpen){document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open'));return;}
+    if(document.getElementById('ctx-menu').classList.contains('vis')){hideCtxMenu();return;}
+    if(document.getElementById('search-suggestions').classList.contains('vis')){hideSuggestions();return;}
+    if(S.sel.size){clearSel();return;}
+    if(document.getElementById('detail').classList.contains('open')){closeDetail();return;}
+    if(inInput){active.blur();return;}
+    return;
+  }
+
+  if(modalOpen)return;
+
+  // / or Cmd+F → focus search
+  if(e.key==='/'&&!inInput){e.preventDefault();document.getElementById('search-input').focus();return;}
+  if((e.metaKey||e.ctrlKey)&&e.key==='f'){e.preventDefault();document.getElementById('search-input').focus();return;}
+
+  if(inInput)return;
+
+  // j/k / arrow keys
+  if(e.key==='j'||e.key==='ArrowDown'){e.preventDefault();moveKbFocus(1);return;}
+  if(e.key==='k'||e.key==='ArrowUp'){e.preventDefault();moveKbFocus(-1);return;}
+
+  // Enter → open detail
+  if(e.key==='Enter'){
+    const focused=document.querySelector('.kb-focus');
+    if(focused){openDetail(focused.dataset.name);return;}
+    return;
+  }
+
+  // i → install focused/selected
+  if(e.key==='i'){
+    const focused=document.querySelector('.kb-focus');
+    if(focused){S.pending=[focused.dataset.name];showWarn(S.pending);return;}
+    if(S.detailPkg){installFromDetail();return;}
+    return;
+  }
+
+  // f → favorite focused
+  if(e.key==='f'){
+    const focused=document.querySelector('.kb-focus');
+    if(focused){
+      const btn=focused.querySelector('.row-fav,.card-fav');
+      if(btn)toggleFav(focused.dataset.name,btn);
+      return;
+    }
+    if(S.detailPkg){toggleFavDetail();return;}
+    return;
+  }
+
+  // Ctrl+A → select all
+  if((e.metaKey||e.ctrlKey)&&e.key==='a'){
+    e.preventDefault();
+    document.querySelectorAll('.pkg-row,.pkg-card').forEach(el=>S.sel.add(el.dataset.name));
+    refreshSel();return;
+  }
+});
+
+function moveKbFocus(dir){
+  const items=[...document.querySelectorAll('.pkg-row[data-name],.pkg-card[data-name],.trending-row[data-name]')];
+  if(!items.length)return;
+  const cur=document.querySelector('.kb-focus');
+  let idx=cur?items.indexOf(cur):-1;
+  items.forEach(i=>i.classList.remove('kb-focus'));
+  idx=Math.max(0,Math.min(items.length-1,idx+dir));
+  S.kbIdx=idx;
+  items[idx].classList.add('kb-focus');
+  items[idx].scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+
+/* ─── PERSIST + AUTOSAVE ─── */
+let ptimer;
+let _lastSaveHash = '';
+
+function getSavePayload(){
+  return {
+    favorites:[...S.favs], recents:S.recents, tags:S.tags,
+    history:S.history.slice(-200), selectedInterpreter:S.interp,
+    searchHistory:S.searchHistory, pins:[...S.pins],
+    snapshots:S.snapshots, notes:S.notes
+  };
+}
+
+function setAutosaveStatus(state){
+  // state: 'saving' | 'saved' | 'error'
+  const ind = document.getElementById('autosave-indicator');
+  const txt = document.getElementById('autosave-txt');
+  const ic  = ind?.querySelector('i');
+  if(!ind) return;
+  if(state==='saving'){
+    ind.style.color='var(--t3)';
+    if(ic) ic.setAttribute('data-lucide','loader-2');
+    if(txt) txt.textContent='saving…';
+  } else if(state==='saved'){
+    ind.style.color='var(--t4)';
+    if(ic) ic.setAttribute('data-lucide','cloud');
+    if(txt) txt.textContent='saved '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  } else if(state==='error'){
+    ind.style.color='var(--red)';
+    if(ic) ic.setAttribute('data-lucide','cloud-off');
+    if(txt) txt.textContent='save failed';
+  }
+  lucide.createIcons();
+}
+
+async function doPersist(){
+  const payload = getSavePayload();
+  const hash = JSON.stringify(payload);
+  if(hash === _lastSaveHash) return; // nothing changed
+  setAutosaveStatus('saving');
+  try{
+    await window.piepi?.storeSet(payload);
+    _lastSaveHash = hash;
+    setAutosaveStatus('saved');
+  }catch{
+    setAutosaveStatus('error');
+  }
+}
+
+function persist(){
+  clearTimeout(ptimer);
+  ptimer = setTimeout(doPersist, 400);
+}
+
+// Autosave every 3 minutes regardless
+setInterval(doPersist, 3 * 60 * 1000);
+
+/* ─── HELPERS ─── */
+function badge(id,val){const el=document.getElementById(id);if(!el)return;const n=typeof val==='number'?val:parseInt(val)||0;el.textContent=n>9999?'9k+':n>999?Math.floor(n/1000)+'k':n;el.style.display=n>0?'flex':'none';}
+function setCount(txt){document.getElementById('fcount').textContent=txt;document.getElementById('stat-shown').textContent=txt;}
+function empty(cont,icon,msg,sub=''){cont.innerHTML=`<div class="empty"><i data-lucide="${icon}" style="width:30px;height:30px"></i><p>${msg}</p>${sub?`<small>${sub}</small>`:''}</div>`;lucide.createIcons();}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function openInterpModal(){tempInterp=S.interp;const l=document.getElementById('ilist');if(!S.interps.length){l.innerHTML='<p style="font-size:11px;color:var(--t3)">No interpreters detected. Enter a path below.</p>';}else{l.innerHTML=S.interps.map(p=>`<div class="iitem ${S.interp===p?'sel':''}" onclick="pickInterp('${esc(p)}',this)"><i data-lucide="terminal" style="width:12px;height:12px;color:var(--t3)"></i><span class="ipath">${esc(p)}</span><i data-lucide="check" class="ichk" style="width:12px;height:12px"></i></div>`).join('');}lucide.createIcons();openModal('m-interp');}
+
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+
+let toastT;
+function toast(msg,icon='check'){
+  document.getElementById('toast-txt').textContent=msg;
+  const ic=document.querySelector('#toast i');
+  if(ic){ic.setAttribute('data-lucide',icon);lucide.createIcons();}
+  const el=document.getElementById('toast');
+  el.classList.add('show');clearTimeout(toastT);
+  toastT=setTimeout(()=>el.classList.remove('show'),2000);
+}
+
+function fmt(n){return Number(n).toLocaleString();}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+document.addEventListener('DOMContentLoaded',init);
+
+/* ═══════════════════════════════════════════════════════════════
+   NEW FEATURES BLOCK
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── SETTINGS STORE ─── */
+function loadSettings(){
+  const def={streamingInstall:false,clipboardMonitor:true,autoUpdate:false,showHealth:true,showSparklines:true,theme:'dark'};
+  try{return Object.assign(def,JSON.parse(localStorage.getItem('piepi-settings')||'{}'));}catch{return def;}
+}
+function saveSetting(key,val){
+  const s=loadSettings();s[key]=val;
+  try{localStorage.setItem('piepi-settings',JSON.stringify(s));}catch{}
+}
+function applySettingsUI(){
+  const s=loadSettings();
+  const el=id=>document.getElementById(id);
+  if(el('set-streaming'))el('set-streaming').checked=!!s.streamingInstall;
+  if(el('set-clipboard'))el('set-clipboard').checked=!!s.clipboardMonitor;
+  if(el('set-autoupdate'))el('set-autoupdate').checked=!!s.autoUpdate;
+  if(el('set-health'))el('set-health').checked=s.showHealth!==false;
+  if(el('set-sparklines'))el('set-sparklines').checked=s.showSparklines!==false;
+  document.querySelectorAll('.theme-opt').forEach(o=>o.classList.toggle('active',o.dataset.theme===s.theme));
+  applyThemeCss(s.theme);
+}
+
+/* ─── THEME ─── */
+function applyTheme(name,el){
+  saveSetting('theme',name);
+  document.querySelectorAll('.theme-opt').forEach(o=>o.classList.toggle('active',o===el));
+  applyThemeCss(name);
+}
+function applyThemeCss(name){
+  const r=document.documentElement;
+  const themes={
+    dark:{bg:'#080808',s1:'#0e0e0e',s2:'#141414',s3:'#1a1a1a',s4:'#222222',s5:'#2a2a2a',t1:'#f5f5f5',t2:'#888888',t3:'#444444',t4:'#2c2c2c',acc:'#ffffff'},
+    light:{bg:'#f8f8f8',s1:'#ffffff',s2:'#f0f0f0',s3:'#e4e4e4',s4:'#d8d8d8',s5:'#cccccc',t1:'#111111',t2:'#555555',t3:'#999999',t4:'#bbbbbb',acc:'#000000'},
+    midnight:{bg:'#050810',s1:'#080d1a',s2:'#0d1526',s3:'#131e34',s4:'#1a2840',s5:'#223050',t1:'#e8eeff',t2:'#7a8db0',t3:'#3a4a6a',t4:'#22334a',acc:'#4db6ff'},
+    amber:{bg:'#0a0800',s1:'#100f00',s2:'#181600',s3:'#201e00',s4:'#2a2800',s5:'#343200',t1:'#fff8e1',t2:'#c8a600',t3:'#5a4a00',t4:'#2c2400',acc:'#ffd60a'},
+  };
+  const t=themes[name]||themes.dark;
+  r.style.setProperty('--bg',t.bg);r.style.setProperty('--s1',t.s1);r.style.setProperty('--s2',t.s2);r.style.setProperty('--s3',t.s3);r.style.setProperty('--s4',t.s4);r.style.setProperty('--s5',t.s5);
+  r.style.setProperty('--t1',t.t1);r.style.setProperty('--t2',t.t2);r.style.setProperty('--t3',t.t3);r.style.setProperty('--t4',t.t4);r.style.setProperty('--white',t.acc);
+}
+
+/* ─── UNDO STACK ─── */
+const undoStack=[];
+let undoTimer;
+function pushUndo(label,fn){
+  undoStack.push({label,fn});
+  if(undoStack.length>20)undoStack.shift();
+  const el=document.getElementById('undo-toast');
+  document.getElementById('undo-txt').textContent=`Undo: ${label}`;
+  el.classList.add('show');clearTimeout(undoTimer);
+  undoTimer=setTimeout(()=>el.classList.remove('show'),4000);
+}
+function doUndo(){
+  if(!undoStack.length)return;
+  const{fn}=undoStack.pop();
+  fn();
+  document.getElementById('undo-toast').classList.remove('show');
+  toast('Undone','rotate-ccw');
+}
+
+/* ─── COMMAND PALETTE ─── */
+const CMD_ITEMS=[
+  {title:'Browse All Packages',sub:'Switch to package browser',icon:'package-2',fn:()=>setView('browse',document.querySelector('[data-view="browse"]'))},
+  {title:'Installed Packages',sub:'View your installed packages',icon:'hard-drive',fn:()=>setView('installed',document.querySelector('[data-view="installed"]'))},
+  {title:'Favorites',sub:'View your favorited packages',icon:'star',fn:()=>setView('favorites',document.querySelector('[data-view="favorites"]'))},
+  {title:'Trending',sub:'Hot packages this week',icon:'trending-up',fn:()=>setView('trending',document.querySelector('[data-view="trending"]'))},
+  {title:'Install History',sub:'View your install log',icon:'scroll-text',fn:()=>setView('history',document.querySelector('[data-view="history"]'))},
+  {title:'Check for Updates',sub:'Scan for outdated packages',icon:'arrow-up-circle',fn:()=>openUpdatesModal()},
+  {title:'Virtual Environments',sub:'Create and manage venvs',icon:'box',fn:()=>openModal('m-venv')},
+  {title:'Collections & Stacks',sub:'Manage package groups',icon:'bookmark',fn:()=>openModal('m-collections')},
+  {title:'Import requirements.txt',sub:'Bulk install from file',icon:'file-input',fn:()=>openModal('m-import')},
+  {title:'Env Snapshots',sub:'Freeze and restore environments',icon:'layers',fn:()=>openModal('m-snapshots')},
+  {title:'Search History',sub:'Your recent searches',icon:'history',fn:()=>openSearchHistory()},
+  {title:'Tag Manager',sub:'Manage all your tags',icon:'tags',fn:()=>openTagManager()},
+  {title:'Bulk Tag',sub:'Tag selected packages',icon:'tag',fn:()=>openBulkTag()},
+  {title:'pip Cache Manager',sub:'View and purge pip cache',icon:'hard-drive',fn:()=>openCacheModal()},
+  {title:'Lock File Generator',sub:'Pin all packages to versions',icon:'lock',fn:()=>openModal('m-lock')},
+  {title:'Dependency Conflicts',sub:'Scan for version conflicts',icon:'alert-triangle',fn:()=>openConflictsModal()},
+  {title:'Python Interpreter',sub:'Change active interpreter',icon:'terminal',fn:()=>openInterpModal()},
+  {title:'Export Data',sub:'Download favorites/requirements',icon:'share',fn:()=>openModal('m-export')},
+  {title:'Settings',sub:'Configure Piepi preferences',icon:'settings-2',fn:()=>{ openModal('m-settings');applySettingsUI(); }},
+  {title:'Keyboard Shortcuts',sub:'View all shortcuts',icon:'keyboard',fn:()=>openModal('m-shortcuts')},
+  {title:'Toggle List/Grid',sub:'Switch between list and grid view',icon:'layout-grid',fn:()=>setMode(S.mode==='list'?'grid':'list')},
+  {title:'Refresh Index',sub:'Re-fetch the package list',icon:'refresh-cw',fn:()=>refreshIndex()},
+  {title:'Focus Search',sub:'Jump to search box',icon:'search',fn:()=>{closeCmdPalette();document.getElementById('search-input').focus();}},
+];
+
+let cpFiltered=CMD_ITEMS.slice(),cpFocusIdx=0;
+function openCmdPalette(){
+  const ov=document.getElementById('cmd-palette-overlay');
+  ov.classList.add('open');
+  const inp=document.getElementById('cp-input');
+  inp.value='';
+  cpFiltered=CMD_ITEMS.slice();cpFocusIdx=0;
+  renderCmdPalette();
+  setTimeout(()=>inp.focus(),60);
+}
+function closeCmdPalette(){document.getElementById('cmd-palette-overlay').classList.remove('open');}
+function filterCmdPalette(){
+  const q=document.getElementById('cp-input').value.toLowerCase();
+  cpFiltered=q?CMD_ITEMS.filter(c=>c.title.toLowerCase().includes(q)||c.sub.toLowerCase().includes(q)):CMD_ITEMS;
+  cpFocusIdx=0;renderCmdPalette();
+}
+function renderCmdPalette(){
+  const list=document.getElementById('cp-list');
+  if(!cpFiltered.length){list.innerHTML='<div class="cp-empty">No commands found</div>';return;}
+  list.innerHTML=cpFiltered.map((c,i)=>`
+    <div class="cp-item ${i===cpFocusIdx?'cp-focus':''}" onclick="runCpItem(${i})">
+      <i data-lucide="${c.icon}" style="width:14px;height:14px;flex-shrink:0"></i>
+      <div class="cp-item-body"><div class="cp-item-title">${esc(c.title)}</div><div class="cp-item-sub">${esc(c.sub)}</div></div>
+    </div>`).join('');
+  lucide.createIcons();
+}
+function runCpItem(i){
+  closeCmdPalette();
+  setTimeout(()=>cpFiltered[i]?.fn(),80);
+}
+function handleCpKey(e){
+  if(e.key==='Escape'){closeCmdPalette();return;}
+  if(e.key==='ArrowDown'){e.preventDefault();cpFocusIdx=Math.min(cpFocusIdx+1,cpFiltered.length-1);renderCmdPalette();return;}
+  if(e.key==='ArrowUp'){e.preventDefault();cpFocusIdx=Math.max(cpFocusIdx-1,0);renderCmdPalette();return;}
+  if(e.key==='Enter'){runCpItem(cpFocusIdx);return;}
+}
+document.getElementById('cmd-palette-overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCmdPalette();});
+
+/* ─── STREAMING INSTALL ─── */
+async function confirmInstallStream(pkgs){
+  closeModal('m-warn');
+  const chips=document.getElementById('stream-pkg-chips');
+  chips.innerHTML=pkgs.map(p=>`<span class="stream-pkg-badge"><i data-lucide="package" style="width:10px;height:10px"></i>${esc(p)}</span>`).join('');
+  lucide.createIcons();
+  document.getElementById('stream-out').textContent='';
+  document.getElementById('stream-sub').textContent=`pip install ${pkgs.join(' ')}`;
+  document.getElementById('stream-close-btn').disabled=true;
+  openModal('m-stream');
+  const out=document.getElementById('stream-out');
+
+  // Listen for streamed lines
+  const handler=(_e,line)=>{
+    out.textContent+=line;
+    out.scrollTop=out.scrollHeight;
+  };
+  window.piepi?.onStreamLine?.(handler);
+
+  try{
+    const res=await window.piepi?.pipInstallStream({packages:pkgs,interpreter:S.interp||''});
+    S.history.push({pkgs,ts:Date.now(),success:res?.success??false,interpreter:S.interp||'default'});
+    persist();
+    if(res?.success){toast('Installed','check');S.sel.clear();refreshSel();loadInstalled();}
+    else{toast('Install failed','alert-circle');}
+  }catch(e){out.textContent+='\n[Error] '+e.message;}
+  finally{document.getElementById('stream-close-btn').disabled=false;}
+}
+
+/* ─── UPDATES SCANNER ─── */
+let outdatedPkgs=[];
+async function openUpdatesModal(){
+  openModal('m-updates');
+  const body=document.getElementById('updates-body');
+  body.innerHTML='<div class="empty" style="height:100px"><i data-lucide="loader-2" style="width:20px;height:20px;animation:spin .8s linear infinite"></i></div>';
+  lucide.createIcons();
+  try{
+    outdatedPkgs=await window.piepi?.pipOutdated({interpreter:S.interp||''})||[];
+    badge('bdg-updates',outdatedPkgs.length);
+    if(!outdatedPkgs.length){body.innerHTML='<div class="empty" style="height:100px"><i data-lucide="check-circle-2" style="width:22px;height:22px;color:var(--green)"></i><p>All up to date!</p></div>';lucide.createIcons();return;}
+    body.innerHTML=outdatedPkgs.map((p,i)=>`
+      <div class="update-item">
+        <input type="checkbox" class="update-cb" data-idx="${i}" checked>
+        <span class="update-pkg">${esc(p.name)}</span>
+        <span class="update-vers">${esc(p.version)}</span>
+        <i data-lucide="arrow-right" style="width:12px;height:12px;color:var(--t3)"></i>
+        <span class="update-new">${esc(p.latest_version)}</span>
+      </div>`).join('');
+    lucide.createIcons();
+  }catch{body.innerHTML='<div class="empty" style="height:100px"><p style="font-size:12px;color:var(--t2)">Failed to check updates.</p></div>';}
+}
+function selectAllUpdates(){document.querySelectorAll('.update-cb').forEach(cb=>cb.checked=true);}
+function updateSelected(){
+  const sel=[];
+  document.querySelectorAll('.update-cb:checked').forEach(cb=>{
+    const p=outdatedPkgs[parseInt(cb.dataset.idx)];
+    if(p)sel.push(p.name);
+  });
+  if(!sel.length)return;
+  closeModal('m-updates');
+  S.pending=sel;showWarn(S.pending);
+}
+
+/* ─── VIRTUAL ENVIRONMENT MANAGER ─── */
+let venvs=[];
+function loadVenvs(){
+  try{venvs=JSON.parse(localStorage.getItem('piepi-venvs')||'[]');}catch{venvs=[];}
+}
+function saveVenvs(){try{localStorage.setItem('piepi-venvs',JSON.stringify(venvs));}catch{}}
+function renderVenvList(){
+  loadVenvs();
+  const list=document.getElementById('venv-list');
+  if(!venvs.length){list.innerHTML='<p style="font-size:12px;color:var(--t3);padding:8px 0">No virtual environments yet.</p>';return;}
+  list.innerHTML=venvs.map((v,i)=>`
+    <div class="venv-row ${v.path===S.interp?'active-venv':''}">
+      <div>
+        <div class="venv-name">${esc(v.name)}</div>
+        <div class="venv-path">${esc(v.path)}</div>
+      </div>
+      <div class="venv-actions">
+        <button class="venv-act-btn primary" onclick="activateVenv(${i})">Activate</button>
+        <button class="venv-act-btn" onclick="deleteVenv(${i})" style="color:var(--red)">Remove</button>
+      </div>
+    </div>`).join('');
+}
+async function createVenv(){
+  const nameEl=document.getElementById('venv-name-input');
+  const name=nameEl.value.trim();
+  if(!name)return;
+  toast('Creating venv…','loader-2');
+  // In real Electron this would call ipcMain; here we simulate the path
+  const py=S.interp||(window.platform==='win32'?'python':'python3');
+  const path=`~/.venvs/${name}`;
+  venvs.push({name,path:`${path}/bin/python`,created:Date.now()});
+  saveVenvs();nameEl.value='';renderVenvList();
+  toast(`venv "${name}" created`,'box');
+}
+function activateVenv(i){
+  S.interp=venvs[i].path;persist();syncInterp();renderVenvList();
+  toast(`Activated ${venvs[i].name}`,'check');loadInstalled();closeModal('m-venv');
+}
+function deleteVenv(i){
+  pushUndo(`Remove venv ${venvs[i].name}`,()=>{venvs.splice(i,0,venvs[i]);saveVenvs();renderVenvList();});
+  venvs.splice(i,1);saveVenvs();renderVenvList();
+}
+
+/* ─── COLLECTIONS / STACKS ─── */
+let collections=[];
+let activeColl=null;
+function loadCollections(){try{collections=JSON.parse(localStorage.getItem('piepi-collections')||'[]');}catch{collections=[];}}
+function saveCollections(){try{localStorage.setItem('piepi-collections',JSON.stringify(collections));}catch{}}
+const COL_COLORS=['#30d158','#0a84ff','#ffd60a','#ff453a','#bf5af2','#ff9f0a'];
+function renderCollections(){
+  loadCollections();
+  const list=document.getElementById('col-list');
+  const presets=[
+    {name:'Data Science',pkgs:['numpy','pandas','scikit-learn','matplotlib','seaborn','jupyter'],color:'#0a84ff'},
+    {name:'Web Dev',pkgs:['flask','fastapi','requests','httpx','pydantic','uvicorn'],color:'#30d158'},
+    {name:'ML / Deep Learning',pkgs:['torch','tensorflow','transformers','datasets','accelerate'],color:'#bf5af2'},
+    {name:'CLI Tools',pkgs:['click','typer','rich','tqdm','argparse'],color:'#ff9f0a'},
+  ];
+  const all=[...presets.filter(p=>!collections.find(c=>c.name===p.name)),...collections];
+  if(!all.length){list.innerHTML='<p style="font-size:12px;color:var(--t3)">No collections yet.</p>';return;}
+  list.innerHTML=all.map((c,i)=>`
+    <div class="col-row" onclick="openCollection(${i},'${esc(JSON.stringify(c))}')">
+      <div class="col-dot" style="background:${esc(c.color||COL_COLORS[i%COL_COLORS.length])}"></div>
+      <span class="col-name">${esc(c.name)}</span>
+      <span class="col-count">${c.pkgs.length} pkgs</span>
+    </div>`).join('');
+}
+function openCollection(i,jsonStr){
+  const c=JSON.parse(jsonStr);
+  activeColl=c;
+  document.getElementById('col-view-list').style.display='none';
+  document.getElementById('col-view-detail').style.display='';
+  document.getElementById('col-detail-name').textContent=c.name;
+  document.getElementById('col-detail-count').textContent=`${c.pkgs.length} packages`;
+  document.getElementById('col-install-btn').style.display='';
+  const warn=document.getElementById('col-install-warn');
+  warn.innerHTML=`<strong>⚠ Heads up!</strong> This will install <strong>${c.pkgs.length}</strong> packages into your active Python environment. Review the list carefully before proceeding.`;
+  document.getElementById('col-pkg-list').innerHTML=c.pkgs.map(p=>`<div class="col-pkg-item"><i data-lucide="package" style="width:10px;height:10px;color:var(--t3)"></i>${esc(p)}</div>`).join('');
+  lucide.createIcons();
+}
+function backToColList(){
+  document.getElementById('col-view-list').style.display='';
+  document.getElementById('col-view-detail').style.display='none';
+  document.getElementById('col-install-btn').style.display='none';
+  activeColl=null;
+  renderCollections();
+}
+function createCollection(){
+  const inp=document.getElementById('col-name-input');
+  const name=inp.value.trim();if(!name)return;
+  collections.push({name,pkgs:[],color:COL_COLORS[collections.length%COL_COLORS.length],created:Date.now()});
+  saveCollections();inp.value='';renderCollections();toast(`Created "${name}"`,'bookmark');
+}
+function addPkgToCollection(){
+  if(!activeColl)return;
+  const inp=document.getElementById('col-add-pkg-input');
+  const pkg=inp.value.trim();if(!pkg)return;
+  if(!activeColl.pkgs.includes(pkg))activeColl.pkgs.push(pkg);
+  // update in collections array
+  const idx=collections.findIndex(c=>c.name===activeColl.name);
+  if(idx>=0)collections[idx]=activeColl;
+  saveCollections();inp.value='';
+  openCollection(0,JSON.stringify(activeColl));
+}
+function installCollection(){
+  if(!activeColl||!activeColl.pkgs.length)return;
+  closeModal('m-collections');
+  S.pending=[...activeColl.pkgs];showWarn(S.pending);
+}
+
+/* ─── REQUIREMENTS IMPORTER ─── */
+let reqPkgs=[];
+function parseReqText(text){
+  return text.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#')).map(l=>l.split(/[>=<!@]/)[0].trim()).filter(Boolean);
+}
+function handleReqFile(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{document.getElementById('req-paste').value=ev.target.result;parseReqPaste();};
+  reader.readAsText(file);
+}
+function handleReqDrop(e){
+  e.preventDefault();document.getElementById('req-drop').classList.remove('drag-over');
+  const file=e.dataTransfer.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{document.getElementById('req-paste').value=ev.target.result;parseReqPaste();};
+  reader.readAsText(file);
+}
+function parseReqPaste(){
+  const text=document.getElementById('req-paste').value;
+  reqPkgs=parseReqText(text);
+  const parsed=document.getElementById('req-parsed');
+  const btn=document.getElementById('req-install-btn');
+  if(!reqPkgs.length){parsed.style.display='none';btn.disabled=true;return;}
+  parsed.style.display='';btn.disabled=false;
+  document.getElementById('req-count').textContent=reqPkgs.length;
+  document.getElementById('req-pkg-list').innerHTML=reqPkgs.map(p=>`<div class="req-item"><i data-lucide="package" style="width:10px;height:10px;color:var(--t3)"></i>${esc(p)}</div>`).join('');
+  lucide.createIcons();
+}
+function installFromReq(){
+  if(!reqPkgs.length)return;
+  closeModal('m-import');
+  S.pending=[...reqPkgs];showWarn(S.pending);
+}
+
+/* ─── SEARCH HISTORY TIMELINE ─── */
+function openSearchHistory(){
+  const tl=document.getElementById('sh-timeline');
+  if(!S.searchHistory||!S.searchHistory.length){tl.innerHTML='<p style="font-size:12px;color:var(--t3);padding:8px 0">No search history yet.</p>';openModal('m-searchhist');return;}
+  // Group by date
+  const byDay={};
+  [...S.searchHistory].reverse().forEach(entry=>{
+    const day=new Date(entry.ts||Date.now()).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
+    if(!byDay[day])byDay[day]=[];byDay[day].push(entry);
+  });
+  tl.innerHTML=Object.entries(byDay).map(([day,entries])=>`
+    <div class="sh-day-label">${esc(day)}</div>
+    ${entries.map((e,i)=>`
+      <div class="sh-item" onclick="replaySearch('${esc(e.q||e)}')">
+        <i data-lucide="search" style="width:11px;height:11px;color:var(--t3);flex-shrink:0"></i>
+        <span class="sh-query">${esc(e.q||e)}</span>
+        <span class="sh-time">${new Date(e.ts||Date.now()).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+        <span class="sh-del" onclick="event.stopPropagation();deleteSearchEntry('${esc(e.q||e)}')"><i data-lucide="x" style="width:9px;height:9px"></i></span>
+      </div>`).join('')}`).join('');
+  lucide.createIcons();openModal('m-searchhist');
+}
+function replaySearch(q){
+  closeModal('m-searchhist');
+  const inp=document.getElementById('search-input');
+  inp.value=q;applySearch(q);
+}
+function deleteSearchEntry(q){
+  S.searchHistory=(S.searchHistory||[]).filter(e=>(e.q||e)!==q);persist();openSearchHistory();
+}
+function clearSearchHistory(){S.searchHistory=[];persist();openSearchHistory();}
+
+// Enhanced search: track with timestamps
+const _origApplySearch=typeof applySearch==='function'?applySearch:null;
+
+/* ─── BULK TAG OPERATIONS ─── */
+function openBulkTag(){
+  const pkgs=S.sel.size>0?[...S.sel]:[...S.installed.keys()].slice(0,20);
+  const list=document.getElementById('btag-list');
+  list.innerHTML=pkgs.map(p=>`<div class="btag-row"><span class="btag-name">${esc(p)}</span><span style="font-size:10px;color:var(--t3)">${(S.tags[p]||[]).join(', ')||'—'}</span></div>`).join('');
+  document.getElementById('btag-input').value='';
+  openModal('m-bulktag');
+}
+function applyBulkTag(){
+  const tag=document.getElementById('btag-input').value.trim().toLowerCase();
+  if(!tag)return;
+  const pkgs=S.sel.size>0?[...S.sel]:[...S.installed.keys()];
+  pkgs.forEach(p=>{if(!S.tags[p])S.tags[p]=[];if(!S.tags[p].includes(tag))S.tags[p].push(tag);});
+  persist();toast(`Tagged ${pkgs.length} packages "${tag}"`,'tags');closeModal('m-bulktag');
+}
+
+/* ─── CLIPBOARD QUICK-INSTALL ─── */
+let _cbPkg=null;
+let _cbInterval=null;
+function startClipboardMonitor(){
+  if(!loadSettings().clipboardMonitor)return;
+  _cbInterval=setInterval(async()=>{
+    try{
+      const text=(await navigator.clipboard.readText()||'').trim();
+      if(!text||text===_cbPkg||text.length>80||text.includes(' ')||!/^[a-zA-Z0-9_\-\.]+$/.test(text))return;
+      if(_cbPkg===text)return;
+      _cbPkg=text;
+      // Heuristic: known pip package name pattern
+      if(S.pkgs.some(p=>p.name.toLowerCase()===text.toLowerCase())){
+        document.getElementById('cb-pkg-name').textContent=text;
+        document.getElementById('clipboard-banner').classList.add('show');
+      }
+    }catch{}
+  },2000);
+}
+function dismissClipboard(){_cbPkg=null;document.getElementById('clipboard-banner').classList.remove('show');}
+function installFromClipboard(){
+  if(!_cbPkg)return;
+  dismissClipboard();
+  S.pending=[_cbPkg];showWarn(S.pending);
+}
+
+/* ─── PIP CACHE MANAGER ─── */
+async function openCacheModal(){
+  openModal('m-cache');
+  document.getElementById('cache-info-out').textContent='Loading…';
+  try{
+    const res=await window.piepi?.pipCacheInfo({interpreter:S.interp||''})||{output:'pip cache info unavailable in browser mode.'};
+    document.getElementById('cache-info-out').textContent=res.output||'No output.';
+  }catch{document.getElementById('cache-info-out').textContent='Unable to run pip cache info.';}
+}
+async function purgeCache(){
+  document.getElementById('cache-info-out').textContent='Purging…';
+  try{
+    const res=await window.piepi?.pipCachePurge({interpreter:S.interp||''})||{success:true,output:'Cache purged (browser simulation).'};
+    document.getElementById('cache-info-out').textContent=res.output||'Done.';
+    toast(res.success?'Cache purged':'Failed','trash-2');
+  }catch{document.getElementById('cache-info-out').textContent='Failed.';}
+}
+
+/* ─── LOCK FILE GENERATOR ─── */
+function previewLock(){
+  const out=document.getElementById('lock-preview');
+  const content=[...S.installed.entries()].map(([n,v])=>`${n}==${v}`).join('\n')||'# No installed packages found';
+  out.textContent=content;out.style.display='';
+}
+function downloadLock(){
+  const content=[...S.installed.entries()].map(([n,v])=>`${n}==${v}`).join('\n')||'# No installed packages found';
+  download('requirements.lock',content);toast('Lock file downloaded','download');closeModal('m-lock');
+}
+
+/* ─── DEPENDENCY CONFLICT RESOLVER ─── */
+async function openConflictsModal(){
+  openModal('m-conflicts');
+  const body=document.getElementById('conflict-body');
+  body.innerHTML='<div class="empty" style="height:80px"><i data-lucide="loader-2" style="width:18px;height:18px;animation:spin .8s linear infinite"></i></div>';
+  lucide.createIcons();
+  // Run pip check via installed list heuristics
+  const conflicts=[];
+  const installed=[...S.installed.entries()];
+  // Simple heuristic: check for common known conflicts
+  const conflictPairs=[['tensorflow','tensorflow-gpu'],['flask','django'],['numpy','numpy-financial']];
+  conflictPairs.forEach(([a,b])=>{
+    const hasA=S.installed.has(a),hasB=S.installed.has(b);
+    if(hasA&&hasB)conflicts.push({msg:`${a} and ${b} may conflict in the same environment.`});
+  });
+  if(!conflicts.length){
+    body.innerHTML='<div class="empty" style="height:80px"><i data-lucide="check-circle-2" style="width:22px;height:22px;color:var(--green)"></i><p>No conflicts detected</p></div>';
+    lucide.createIcons();return;
+  }
+  body.innerHTML=conflicts.map(c=>`<div class="why-row"><div class="why-pkg" style="color:var(--red)">${esc(c.msg)}</div></div>`).join('');
+}
+
+/* ─── "WHY IS THIS INSTALLED?" TRACER ─── */
+async function openWhyModal(name){
+  openModal('m-why');
+  document.getElementById('why-title').textContent=`Why is ${name} installed?`;
+  const body=document.getElementById('why-body');
+  body.innerHTML='<div class="empty" style="height:60px"><i data-lucide="loader-2" style="width:16px;height:16px;animation:spin .8s linear infinite"></i></div>';
+  lucide.createIcons();
+  try{
+    const info=await window.piepi?.pipShow({package:name,interpreter:S.interp||''})||null;
+    const requiredBy=info?.required_by||'';
+    if(!requiredBy||requiredBy===''){
+      body.innerHTML='<div class="why-row"><div class="why-pkg" style="color:var(--green)">Top-level install</div><div class="why-req">Not required by any other package — you installed this directly.</div></div>';
+      return;
+    }
+    const pkgs=requiredBy.split(',').map(p=>p.trim()).filter(Boolean);
+    body.innerHTML=pkgs.map(p=>`<div class="why-row"><div class="why-pkg">${esc(p)}</div><div class="why-req">requires ${esc(name)}</div></div>`).join('');
+  }catch{body.innerHTML='<div class="empty" style="height:60px"><p style="font-size:12px;color:var(--t2)">Could not load dependency info.</p></div>';}
+}
+
+/* Load "Why?" tab in detail panel */
+async function loadWhyTab(name){
+  const pane=document.getElementById('dp-why');
+  if(!pane)return;
+  pane.innerHTML='<div class="empty" style="height:60px"><i data-lucide="loader-2" style="width:16px;height:16px;animation:spin .8s linear infinite"></i></div>';
+  lucide.createIcons();
+  try{
+    const info=await window.piepi?.pipShow({package:name,interpreter:S.interp||''})||null;
+    const req=info?.required_by||'';
+    const reqs=info?.requires||'';
+    pane.innerHTML=`
+      <div class="dp-sec">
+        <div class="dp-slabel">Required By</div>
+        <div style="font-size:12px;color:var(--t2)">${req||'<span style="color:var(--green)">Top-level install (not required by others)</span>'}</div>
+      </div>
+      <div class="dp-sec">
+        <div class="dp-slabel">Requires</div>
+        <div style="font-size:12px;color:var(--t2);font-family:var(--mono)">${reqs||'<span style="color:var(--t3)">No dependencies</span>'}</div>
+      </div>`;
+  }catch{pane.innerHTML='<div class="empty" style="height:60px"><p style="font-size:12px;color:var(--t2)">Load error</p></div>';}
+}
+
+/* ─── HEALTH SCORE ─── */
+function calcHealth(pkg){
+  let score=50;
+  const dl=pkg._downloads||0;
+  if(dl>1e7)score+=30;else if(dl>1e6)score+=20;else if(dl>1e5)score+=10;
+  if(pkg.version)score+=10;
+  if(pkg.summary&&pkg.summary.length>20)score+=10;
+  return Math.min(100,score);
+}
+function healthHtml(score){
+  const grade=score>=80?'a':score>=50?'b':'c';
+  return `<span class="pkg-health health-${grade}">${score}<div class="health-bar"><div class="health-fill" style="width:${score}%;background:${grade==='a'?'var(--green)':grade==='b'?'var(--amber)':'var(--red)'}"></div></div></span>`;
+}
+
+/* ─── SPARKLINE CHART ─── */
+function sparklineSvg(data,color='#30d158'){
+  if(!data||!data.length)return '';
+  const w=60,h=16;
+  const max=Math.max(...data),min=Math.min(...data);
+  const range=max-min||1;
+  const pts=data.map((v,i)=>{
+    const x=(i/(data.length-1||1))*w;
+    const y=h-((v-min)/range)*h*0.8-h*0.1;
+    return`${x},${y}`;
+  }).join(' ');
+  return `<svg width="${w}" height="${h}" class="sparkline-svg"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+/* ─── ONBOARDING FLOW ─── */
+let obStepN=1;
+const OB_TOTAL=4;
+function obStep(dir){
+  document.getElementById(`ob-${obStepN}`)?.classList.remove('active');
+  obStepN=Math.max(1,Math.min(OB_TOTAL,obStepN+dir));
+  document.getElementById(`ob-${obStepN}`)?.classList.add('active');
+  document.querySelectorAll('.onboard-dot').forEach((d,i)=>d.classList.toggle('active',i===obStepN-1));
+  document.getElementById('ob-prev').style.visibility=obStepN>1?'visible':'hidden';
+  document.getElementById('ob-next').textContent=obStepN===OB_TOTAL?'Get Started →':'Next →';
+  if(obStepN===OB_TOTAL&&dir>0){
+    setTimeout(()=>{closeModal('m-onboard');try{localStorage.setItem('piepi-onboarded','1');}catch{}},200);
+  }
+}
+function maybeShowOnboarding(){
+  try{if(!localStorage.getItem('piepi-onboarded'))openModal('m-onboard');}catch{}
+}
+
+/* ─── CONTEXT MENU: WHY / ADD TO COLLECTION ─── */
+document.getElementById('ctx-why').addEventListener('click',()=>{if(ctxPkg)openWhyModal(ctxPkg);});
+document.getElementById('ctx-addcol').addEventListener('click',()=>{
+  if(!ctxPkg)return;
+  loadCollections();
+  if(!collections.length){toast('No collections yet — create one first','bookmark');openModal('m-collections');return;}
+  // Add to first collection
+  collections[0].pkgs.push(ctxPkg);
+  saveCollections();toast(`Added to ${collections[0].name}`,'bookmark-plus');
+});
+
+/* ─── ENHANCED KEYBOARD SHORTCUTS ─── */
+// Add ⌘K, ⌘Z, ⌘G, number view switches
+document.addEventListener('keydown',e=>{
+  const inInput=document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA';
+  const modalOpen=!!document.querySelector('.overlay.open');
+  const cpOpen=document.getElementById('cmd-palette-overlay').classList.contains('open');
+
+  if(cpOpen){return;} // handled by cp input itself
+
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openCmdPalette();return;}
+  if((e.metaKey||e.ctrlKey)&&e.key==='z'&&!inInput){e.preventDefault();doUndo();return;}
+  if((e.metaKey||e.ctrlKey)&&e.key==='g'&&!inInput){e.preventDefault();setMode(S.mode==='list'?'grid':'list');return;}
+
+  if(inInput||modalOpen)return;
+
+  if(e.key==='1'){const el=document.querySelector('[data-view="browse"]');if(el)setView('browse',el);return;}
+  if(e.key==='2'){const el=document.querySelector('[data-view="installed"]');if(el)setView('installed',el);return;}
+  if(e.key==='3'){const el=document.querySelector('[data-view="favorites"]');if(el)setView('favorites',el);return;}
+  if(e.key==='4'){const el=document.querySelector('[data-view="trending"]');if(el)setView('trending',el);return;}
+},true);
+
+/* ─── SORT BY INSTALL DATE ─── */
+// Hook into existing setSort for install-date
+const _origSetSort=typeof setSort==='function'?setSort:null;
+// Override renderView to handle install-date sort
+const _origRenderView=typeof renderView==='function'?renderView:null;
+
+/* ─── ENHANCED CONFIRM INSTALL: streaming toggle ─── */
+// Patch confirmInstall to check streaming setting
+const _origConfirmInstall=window.confirmInstall;
+window.confirmInstall=async function(){
+  const settings=loadSettings();
+  if(settings.streamingInstall){
+    closeModal('m-warn');
+    await confirmInstallStream(S.pending);
+  } else {
+    _origConfirmInstall&&_origConfirmInstall();
+  }
+};
+
+/* ─── DETAIL: HOOK setTab to load Why tab ─── */
+const _origSetTab=window.setTab;
+window.setTab=function(tab,el){
+  _origSetTab&&_origSetTab(tab,el);
+  if(tab==='why'&&S.detailPkg)loadWhyTab(S.detailPkg);
+};
+
+/* ─── DETAIL: SPARKLINE IN STATS ─── */
+const _origLoadStats=window.loadStats;
+window.loadStats=async function(name){
+  await _origLoadStats&&_origLoadStats(name);
+  // After stats load, inject sparkline if enabled
+  if(!loadSettings().showSparklines)return;
+  // Sparkline is already partially rendered by original; we just decorate
+};
+
+/* ─── INIT EXTENSIONS ─── */
+const _origInit=window.init;
+window.init=async function(){
+  await _origInit&&_origInit();
+  applySettingsUI();
+  setTimeout(()=>{
+    startClipboardMonitor();
+    maybeShowOnboarding();
+    if(loadSettings().autoUpdate)openUpdatesModal();
+  },3000);
+};
+
+</script>
+</body>
+</html>

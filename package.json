@@ -1,0 +1,23 @@
+{
+  "name": "piepi",
+  "version": "1.0.0",
+  "description": "Python Package Manager — browse & install 755k+ PyPI packages",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.piepi.app",
+    "productName": "Piepi",
+    "icon": "logo.jpg",
+    "mac": { "category": "public.app-category.developer-tools" },
+    "win": { "target": "nsis" },
+    "linux": { "target": "AppImage" }
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  }
+}
